@@ -9,11 +9,6 @@ type ServerConfig interface {
 	GetDomain() string
 }
 
-type KeysConfig interface {
-	GetEncryptionKey() []byte // Must be 32 bytes for AES-256
-	GetSigningKey() []byte    // HMAC signing secret
-}
-
 type DatabaseConfig interface {
 	UseSSL() bool
 	GetHost() string

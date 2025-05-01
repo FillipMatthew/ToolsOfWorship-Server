@@ -10,24 +10,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func NewUserService(keysConfig config.KeysConfig, store domain.UserStore, tokensService TokensService, mailService MailService) *UserService {
+func NewUserService(store domain.UserStore, tokensService TokensService, mailService MailService) *UserService {
 	return &UserService{userStore: store, tokensService: tokensService, mailService: mailService}
 }
 
 type UserService struct {
-	keysConfig    config.KeysConfig
 	userStore     domain.UserStore
 	tokensService TokensService
 	mailService   MailService
 }
 
 func (u *UserService) Login(ctx context.Context, accountId, password string) (domain.User, error) {
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	if !emailRegex.MatchString(accountId) {
+		return domain.User{}, errors.New("invalid email format")
+	}
+
 	userConnection, err := u.userStore.GetUserConnection(ctx, domain.LocalUser, accountId)
 	if err != nil {
 		return domain.User{}, err
@@ -62,8 +65,9 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 		return errors.New("invalid email format")
 	}
 
-	if len(user.DisplayName) < 3 {
-		return errors.New("display name too short")
+	displayNameRegex := regexp.MustCompile(`^[a-zA-Z0-9]{3,30}$`)
+	if !displayNameRegex.MatchString(user.DisplayName) {
+		return errors.New("invalid display name")
 	}
 
 	if len(password) < 8 {
@@ -80,7 +84,7 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 		return errors.New("internal error")
 	}
 
-	err = u.sendVerificationMail(accountId, string(hashedPassword), user.DisplayName)
+	err = u.sendVerificationMail(ctx, accountId, string(hashedPassword), user.DisplayName)
 	if err != nil {
 		return errors.New("unable to send verification email")
 	}
@@ -118,7 +122,7 @@ func (u *UserService) createNewUser(ctx context.Context, email, authDetails, dis
 	return userId, nil
 }
 
-func (u *UserService) sendVerificationMail(email, authDetails, displayName string) error {
+func (u *UserService) sendVerificationMail(ctx context.Context, email, authDetails, displayName string) error {
 	var verificationDetails struct {
 		Email       string `json:"email"`
 		AuthDetails string `json:"authDetails"`
@@ -140,7 +144,7 @@ func (u *UserService) sendVerificationMail(email, authDetails, displayName strin
 		"sub": string(jsonData),
 	}
 
-	token, err := u.tokensService.SignEncryptedToken(payload, u.keysConfig.GetEncryptionKey(), u.keysConfig.GetSigningKey())
+	token, err := u.tokensService.SignEncryptedToken(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("failed to sign token: %v", err)
 	}

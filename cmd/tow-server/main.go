@@ -38,9 +38,9 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 
 	defer db.Close()
 
-	tokensService := service.NewTokensService(config)
+	tokensService := service.NewTokensService(config, postgresql.NewKeyStore(db))
 	mailService := service.NewMailService()
-	userService := service.NewUserService(keyConfig, postgresql.NewUserStore(db), *tokensService, *mailService)
+	userService := service.NewUserService(postgresql.NewUserStore(db), *tokensService, *mailService)
 
 	rt := api.ComposeRouters(users.NewRouter(config, userService))
 

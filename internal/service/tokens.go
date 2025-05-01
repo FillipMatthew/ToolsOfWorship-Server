@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -14,20 +15,53 @@ import (
 	"time"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
+	"github.com/google/uuid"
 )
 
-func NewTokensService(config config.ServerConfig) *TokensService {
-	return &TokensService{config: config}
+func NewTokensService(config config.ServerConfig, keyStore domain.KeyStore) *TokensService {
+	return &TokensService{config: config, keyStore: keyStore}
 }
 
 type TokensService struct {
-	config config.ServerConfig
+	config                config.ServerConfig
+	keyStore              domain.KeyStore
+	currentSigningKey     domain.Key
+	signingKeys           map[uuid.UUID]domain.Key
+	currentEncryptionKey  domain.Key
+	previousEncryptionKey domain.Key
 }
 
-func (ts *TokensService) SignJWT(payload map[string]any, signingKey []byte) (string, error) {
+func (ts *TokensService) SignJWT(ctx context.Context, payload map[string]any) (string, error) {
+	return ts.SignJWTWithKey(ctx, payload, nil)
+}
+
+func (ts *TokensService) VerifyJWT(token string) (map[string]any, error) {
+	return ts.VerifyJWTWithKey(token, nil)
+}
+
+func (ts *TokensService) SignEncryptedToken(ctx context.Context, payload map[string]any) (string, error) {
+	return ts.SignEncryptedTokenWithKey(ctx, payload, nil, nil)
+}
+
+func (ts *TokensService) VerifyEncryptedToken(ctx context.Context, token string, encryptionKey, signingKey []byte) (map[string]any, error) {
+	return ts.VerifyEncryptedTokenWithKey(ctx, token, nil, nil)
+}
+
+func (ts *TokensService) SignJWTWithKey(ctx context.Context, payload map[string]any, signingKey []byte) (string, error) {
 	header := map[string]string{
 		"alg": "HS256",
 		"typ": "JWT",
+	}
+
+	if len(signingKey) == 0 {
+		key, err := ts.getCurrentSigningKey(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		header["kid"] = key.Id.String()
+		signingKey = key.Key
 	}
 
 	headerJSON, err := json.Marshal(header)
@@ -58,7 +92,7 @@ func (ts *TokensService) SignJWT(payload map[string]any, signingKey []byte) (str
 	return token, nil
 }
 
-func (ts *TokensService) VerifyJWT(token string, signingKey []byte) (map[string]interface{}, error) {
+func (ts *TokensService) VerifyJWTWithKey(token string, signingKey []byte) (map[string]any, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, errors.New("invalid token format")
@@ -72,6 +106,34 @@ func (ts *TokensService) VerifyJWT(token string, signingKey []byte) (map[string]
 		return nil, err
 	}
 
+	if len(signingKey) == 0 {
+		headerBytes, err := base64.RawURLEncoding.DecodeString(headerB64)
+		if err != nil {
+			return nil, err
+		}
+
+		var header map[string]any
+		if err := json.Unmarshal(headerBytes, &header); err != nil {
+			return nil, err
+		}
+
+		if kid, ok := header["kid"].(string); ok {
+			id, err := uuid.Parse(kid)
+			if err != nil {
+				return nil, err
+			}
+
+			key, err := ts.getSigningKey(id)
+			if err != nil {
+				return nil, err
+			}
+
+			signingKey = key.Key
+		} else {
+			return nil, errors.New("invalid or missing 'kid'")
+		}
+	}
+
 	if !verifySignature([]byte(signingInput), signature, signingKey) {
 		return nil, errors.New("invalid signature")
 	}
@@ -81,7 +143,7 @@ func (ts *TokensService) VerifyJWT(token string, signingKey []byte) (map[string]
 		return nil, err
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return nil, err
 	}
@@ -105,11 +167,21 @@ func (ts *TokensService) VerifyJWT(token string, signingKey []byte) (map[string]
 	return payload, nil
 }
 
-func (ts *TokensService) SignEncryptedToken(payload map[string]any, encryptionKey, signingKey []byte) (string, error) {
+func (ts *TokensService) SignEncryptedTokenWithKey(ctx context.Context, payload map[string]any, encryptionKey, signingKey []byte) (string, error) {
 	header := map[string]string{
 		"alg": "HS256",
 		"enc": "A256GCM",
 		"typ": "JWT",
+	}
+
+	if len(signingKey) == 0 {
+		key, err := ts.getCurrentSigningKey(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		header["kid"] = key.Id.String()
+		signingKey = key.Key
 	}
 
 	headerJSON, err := json.Marshal(header)
@@ -122,6 +194,15 @@ func (ts *TokensService) SignEncryptedToken(payload map[string]any, encryptionKe
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
+	}
+
+	if len(encryptionKey) == 0 {
+		key, err := ts.getCurrentEncryptionKey(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		encryptionKey = key.Key
 	}
 
 	encryptedPayload, err := encryptAESGCM(payloadJSON, encryptionKey)
@@ -143,7 +224,7 @@ func (ts *TokensService) SignEncryptedToken(payload map[string]any, encryptionKe
 	return token, nil
 }
 
-func (ts *TokensService) VerifyEncryptedToken(token string, encryptionKey, signingKey []byte) (map[string]interface{}, error) {
+func (ts *TokensService) VerifyEncryptedTokenWithKey(ctx context.Context, token string, encryptionKey, signingKey []byte) (map[string]any, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, errors.New("invalid token format")
@@ -157,6 +238,34 @@ func (ts *TokensService) VerifyEncryptedToken(token string, encryptionKey, signi
 		return nil, err
 	}
 
+	if len(signingKey) == 0 {
+		headerBytes, err := base64.RawURLEncoding.DecodeString(headerB64)
+		if err != nil {
+			return nil, err
+		}
+
+		var header map[string]any
+		if err := json.Unmarshal(headerBytes, &header); err != nil {
+			return nil, err
+		}
+
+		if kid, ok := header["kid"].(string); ok {
+			id, err := uuid.Parse(kid)
+			if err != nil {
+				return nil, err
+			}
+
+			key, err := ts.getSigningKey(id)
+			if err != nil {
+				return nil, err
+			}
+
+			signingKey = key.Key
+		} else {
+			return nil, errors.New("invalid or missing 'kid'")
+		}
+	}
+
 	if !verifySignature([]byte(signingInput), signature, signingKey) {
 		return nil, errors.New("invalid signature")
 	}
@@ -166,12 +275,33 @@ func (ts *TokensService) VerifyEncryptedToken(token string, encryptionKey, signi
 		return nil, err
 	}
 
-	decryptedPayload, err := decryptAESGCM(encryptedPayload, encryptionKey)
-	if err != nil {
-		return nil, err
+	if len(encryptionKey) == 0 {
+		key, err := ts.getCurrentEncryptionKey(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		encryptionKey = key.Key
 	}
 
-	var payload map[string]interface{}
+	decryptedPayload, err := decryptAESGCM(encryptedPayload, encryptionKey)
+	if err != nil {
+		// Try previous encryption key before failing
+		key, err2 := ts.getPreviousEncryptionKey()
+		if err2 != nil {
+			return nil, err // Return original error instead of the failure to get previous key
+		}
+
+		encryptionKey = key.Key
+		decryptedPayload, err2 = decryptAESGCM(encryptedPayload, encryptionKey)
+		if err2 != nil {
+			return nil, err // Return original error instead of the failure to decrypt with the previous key
+		}
+
+		// Success on previous key, proceed as normal
+	}
+
+	var payload map[string]any
 	if err := json.Unmarshal(decryptedPayload, &payload); err != nil {
 		return nil, err
 	}
@@ -193,6 +323,79 @@ func (ts *TokensService) VerifyEncryptedToken(token string, encryptionKey, signi
 	}
 
 	return payload, nil
+}
+
+func (ts *TokensService) getCurrentSigningKey(ctx context.Context) (domain.Key, error) {
+	if ts.currentSigningKey.IsValid() {
+		return ts.currentSigningKey, nil
+	}
+
+	newKey, err := domain.NewKey()
+	if err != nil {
+		return domain.Key{}, err
+	}
+
+	if !newKey.IsValid() {
+		return domain.Key{}, errors.New("invalid key generated")
+	}
+
+	ts.currentSigningKey = newKey
+	if ts.signingKeys == nil {
+		ts.signingKeys = map[uuid.UUID]domain.Key{}
+	}
+
+	ts.signingKeys[newKey.Id] = newKey
+
+	err = ts.keyStore.SaveSigningKey(ctx, newKey)
+	if err != nil {
+		return domain.Key{}, err
+	}
+
+	return ts.currentSigningKey, nil
+}
+
+func (ts *TokensService) getSigningKey(id uuid.UUID) (domain.Key, error) {
+	if key, exists := ts.signingKeys[id]; exists {
+		return key, nil
+	}
+
+	return domain.Key{}, errors.New("key not found")
+}
+
+func (ts *TokensService) getCurrentEncryptionKey(ctx context.Context) (domain.Key, error) {
+	if ts.currentEncryptionKey.IsValid() {
+		return ts.currentEncryptionKey, nil
+	}
+
+	newKey, err := domain.NewKey()
+	if err != nil {
+		return domain.Key{}, err
+	}
+
+	if !newKey.IsValid() {
+		return domain.Key{}, errors.New("invalid key generated")
+	}
+
+	if ts.previousEncryptionKey.IsValid() {
+		ts.keyStore.RemoveEncryptionKey(ctx, ts.previousEncryptionKey.Id)
+	}
+
+	ts.previousEncryptionKey = ts.currentEncryptionKey
+	ts.currentEncryptionKey = newKey
+	err = ts.keyStore.SaveEncryptionKey(ctx, newKey)
+	if err != nil {
+		return domain.Key{}, err
+	}
+
+	return ts.currentEncryptionKey, nil
+}
+
+func (ts *TokensService) getPreviousEncryptionKey() (domain.Key, error) {
+	if ts.previousEncryptionKey.Id != uuid.Nil && len(ts.previousEncryptionKey.Key) != 0 {
+		return ts.previousEncryptionKey, nil
+	}
+
+	return domain.Key{}, errors.New("key not found")
 }
 
 func sign(data, key []byte) ([]byte, error) {
