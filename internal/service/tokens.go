@@ -2,20 +2,15 @@ package service
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
 	"strings"
 	"time"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/keys"
 	"github.com/google/uuid"
 )
 
@@ -81,7 +76,7 @@ func (ts *TokensService) SignJWTWithKey(ctx context.Context, payload map[string]
 	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
 
 	signingInput := headerB64 + "." + payloadB64
-	signature, err := sign([]byte(signingInput), signingKey)
+	signature, err := keys.Sign([]byte(signingInput), signingKey)
 	if err != nil {
 		return "", err
 	}
@@ -134,7 +129,7 @@ func (ts *TokensService) VerifyJWTWithKey(token string, signingKey []byte) (map[
 		}
 	}
 
-	if !verifySignature([]byte(signingInput), signature, signingKey) {
+	if !keys.VerifySignature([]byte(signingInput), signature, signingKey) {
 		return nil, errors.New("invalid signature")
 	}
 
@@ -205,7 +200,7 @@ func (ts *TokensService) SignEncryptedTokenWithKey(ctx context.Context, payload 
 		encryptionKey = key.Key
 	}
 
-	encryptedPayload, err := encryptAESGCM(payloadJSON, encryptionKey)
+	encryptedPayload, err := keys.EncryptAESGCM(payloadJSON, encryptionKey)
 	if err != nil {
 		return "", err
 	}
@@ -213,7 +208,7 @@ func (ts *TokensService) SignEncryptedTokenWithKey(ctx context.Context, payload 
 	payloadB64 := base64.RawURLEncoding.EncodeToString(encryptedPayload)
 
 	signingInput := headerB64 + "." + payloadB64
-	signature, err := sign([]byte(signingInput), signingKey)
+	signature, err := keys.Sign([]byte(signingInput), signingKey)
 	if err != nil {
 		return "", err
 	}
@@ -266,7 +261,7 @@ func (ts *TokensService) VerifyEncryptedTokenWithKey(ctx context.Context, token 
 		}
 	}
 
-	if !verifySignature([]byte(signingInput), signature, signingKey) {
+	if !keys.VerifySignature([]byte(signingInput), signature, signingKey) {
 		return nil, errors.New("invalid signature")
 	}
 
@@ -284,7 +279,7 @@ func (ts *TokensService) VerifyEncryptedTokenWithKey(ctx context.Context, token 
 		encryptionKey = key.Key
 	}
 
-	decryptedPayload, err := decryptAESGCM(encryptedPayload, encryptionKey)
+	decryptedPayload, err := keys.DecryptAESGCM(encryptedPayload, encryptionKey)
 	if err != nil {
 		// Try previous encryption key before failing
 		key, err2 := ts.getPreviousEncryptionKey()
@@ -293,7 +288,7 @@ func (ts *TokensService) VerifyEncryptedTokenWithKey(ctx context.Context, token 
 		}
 
 		encryptionKey = key.Key
-		decryptedPayload, err2 = decryptAESGCM(encryptedPayload, encryptionKey)
+		decryptedPayload, err2 = keys.DecryptAESGCM(encryptedPayload, encryptionKey)
 		if err2 != nil {
 			return nil, err // Return original error instead of the failure to decrypt with the previous key
 		}
@@ -396,63 +391,4 @@ func (ts *TokensService) getPreviousEncryptionKey() (domain.Key, error) {
 	}
 
 	return domain.Key{}, errors.New("key not found")
-}
-
-func sign(data, key []byte) ([]byte, error) {
-	mac := hmac.New(sha256.New, key)
-	_, err := mac.Write(data)
-	if err != nil {
-		return nil, err
-	}
-
-	return mac.Sum(nil), nil
-}
-
-func verifySignature(data, signature, key []byte) bool {
-	expected, err := sign(data, key)
-	if err != nil {
-		return false
-	}
-
-	return hmac.Equal(expected, signature)
-}
-
-func encryptAESGCM(plaintext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, aesgcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
-	}
-
-	ciphertext := aesgcm.Seal(nonce, nonce, plaintext, nil)
-	return ciphertext, nil
-}
-
-func decryptAESGCM(ciphertext, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonceSize := aesgcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return nil, errors.New("ciphertext too short")
-	}
-
-	nonce, cipherdata := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	return aesgcm.Open(nil, nonce, cipherdata, nil)
 }

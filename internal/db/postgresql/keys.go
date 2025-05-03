@@ -3,17 +3,21 @@ package postgresql
 import (
 	"context"
 	"database/sql"
+	"errors"
 
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/keys"
 	"github.com/google/uuid"
 )
 
-func NewKeyStore(db *sql.DB) *KeyStore {
-	return &KeyStore{db: db}
+func NewKeyStore(config config.DatabaseConfig, db *sql.DB) *KeyStore {
+	return &KeyStore{config: config, db: db}
 }
 
 type KeyStore struct {
-	db *sql.DB
+	config config.DatabaseConfig
+	db     *sql.DB
 }
 
 func (ks *KeyStore) GetSigningKey(ctx context.Context, id uuid.UUID) (domain.Key, error) {
@@ -23,6 +27,13 @@ func (ks *KeyStore) GetSigningKey(ctx context.Context, id uuid.UUID) (domain.Key
 	if err != nil {
 		return domain.Key{}, err
 	}
+
+	decryptedKey, err := keys.DecryptAESGCM(key.Key, ks.config.GetMasterKey())
+	if err != nil {
+		return domain.Key{}, err
+	}
+
+	key.Key = decryptedKey
 
 	return key, nil
 }
@@ -35,6 +46,13 @@ func (ks *KeyStore) GetEncryptionKey(ctx context.Context, id uuid.UUID) (domain.
 		return domain.Key{}, err
 	}
 
+	decryptedKey, err := keys.DecryptAESGCM(key.Key, ks.config.GetMasterKey())
+	if err != nil {
+		return domain.Key{}, err
+	}
+
+	key.Key = decryptedKey
+
 	return key, nil
 }
 
@@ -45,7 +63,7 @@ func (ks *KeyStore) GetSigningKeys(ctx context.Context) (map[uuid.UUID]domain.Ke
 	}
 	defer rows.Close()
 
-	keys := make(map[uuid.UUID]domain.Key)
+	keysMap := make(map[uuid.UUID]domain.Key)
 
 	for rows.Next() {
 		var key domain.Key
@@ -54,14 +72,21 @@ func (ks *KeyStore) GetSigningKeys(ctx context.Context) (map[uuid.UUID]domain.Ke
 			return nil, err
 		}
 
-		keys[key.Id] = key
+		decryptedKey, err := keys.DecryptAESGCM(key.Key, ks.config.GetMasterKey())
+		if err != nil {
+			return nil, err
+		}
+
+		key.Key = decryptedKey
+
+		keysMap[key.Id] = key
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return keys, nil
+	return keysMap, nil
 }
 
 func (ks *KeyStore) GetEncryptionKeys(ctx context.Context) (map[uuid.UUID]domain.Key, error) {
@@ -71,7 +96,7 @@ func (ks *KeyStore) GetEncryptionKeys(ctx context.Context) (map[uuid.UUID]domain
 	}
 	defer rows.Close()
 
-	keys := make(map[uuid.UUID]domain.Key)
+	keysMap := make(map[uuid.UUID]domain.Key)
 
 	for rows.Next() {
 		var key domain.Key
@@ -80,18 +105,34 @@ func (ks *KeyStore) GetEncryptionKeys(ctx context.Context) (map[uuid.UUID]domain
 			return nil, err
 		}
 
-		keys[key.Id] = key
+		decryptedKey, err := keys.DecryptAESGCM(key.Key, ks.config.GetMasterKey())
+		if err != nil {
+			return nil, err
+		}
+
+		key.Key = decryptedKey
+
+		keysMap[key.Id] = key
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return keys, nil
+	return keysMap, nil
 }
 
 func (ks *KeyStore) SaveSigningKey(ctx context.Context, key domain.Key) error {
-	_, err := ks.db.ExecContext(ctx, "INSERT INTO SignKeys (id, key, expiry) VALUES ($1, $2, $3)", key.Id, key.Key, key.Expiry)
+	if !key.IsValid() {
+		return errors.New("cannot save invalid signing key")
+	}
+
+	encryptedKey, err := keys.EncryptAESGCM(key.Key, ks.config.GetMasterKey())
+	if err != nil {
+		return err
+	}
+
+	_, err = ks.db.ExecContext(ctx, "INSERT INTO SignKeys (id, key, expiry) VALUES ($1, $2, $3)", key.Id, encryptedKey, key.Expiry)
 	if err != nil {
 		return err
 	}
@@ -100,7 +141,16 @@ func (ks *KeyStore) SaveSigningKey(ctx context.Context, key domain.Key) error {
 }
 
 func (ks *KeyStore) SaveEncryptionKey(ctx context.Context, key domain.Key) error {
-	_, err := ks.db.ExecContext(ctx, "INSERT INTO EncKeys (id, key, expiry) VALUES ($1, $2, $3)", key.Id, key.Key, key.Expiry)
+	if !key.IsValid() {
+		return errors.New("cannot save invalid encryption key")
+	}
+
+	encryptedKey, err := keys.EncryptAESGCM(key.Key, ks.config.GetMasterKey())
+	if err != nil {
+		return err
+	}
+
+	_, err = ks.db.ExecContext(ctx, "INSERT INTO EncKeys (id, key, expiry) VALUES ($1, $2, $3)", key.Id, encryptedKey, key.Expiry)
 	if err != nil {
 		return err
 	}

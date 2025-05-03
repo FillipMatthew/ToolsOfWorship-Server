@@ -16,4 +16,5 @@ type DatabaseConfig interface {
 	GetUser() string
 	GetPassword() string
 	GetName() string
+	GetMasterKey() []byte
 }

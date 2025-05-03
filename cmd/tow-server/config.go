@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -18,12 +19,13 @@ type serverConfig struct {
 }
 
 type databaseConfig struct {
-	UseSSL   bool   `json:"ssl"`
-	Host     string `json:"host"`
-	Port     uint   `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
+	UseSSL    bool   `json:"ssl"`
+	Host      string `json:"host"`
+	Port      uint   `json:"port"`
+	User      string `json:"user"`
+	Password  string `json:"password"`
+	Name      string `json:"name"`
+	MasterKey []byte `json:"masterKey"`
 }
 
 type config struct {
@@ -79,6 +81,10 @@ func (config *config) GetName() string {
 	return config.Database.Name
 }
 
+func (config *config) GetMasterKey() []byte {
+	return config.Database.MasterKey
+}
+
 func getConfig() *config {
 	config := getEnvConfig()
 
@@ -101,6 +107,20 @@ func getConfig() *config {
 	flag.StringVar(&config.Database.User, "dbuser", config.Database.User, "Database user")
 	flag.StringVar(&config.Database.Password, "dbpassword", config.Database.Password, "Database password")
 	flag.StringVar(&config.Database.Name, "dbname", config.Database.Name, "Database name")
+	masterKey := flag.String("masterKey", "", "The master used for encrypting keys in the DB.")
+	if len(*masterKey) != 0 {
+		keyBytes, err := base64.RawURLEncoding.DecodeString(*masterKey)
+		if err != nil {
+			fmt.Println("Error loading master key command line args:", err)
+		} else {
+			config.Database.MasterKey = keyBytes
+		}
+
+		if len(keyBytes) != 32 {
+			fmt.Print("Error parsing master key. Key must be 32 bytes encoded in base64")
+		}
+	}
+
 	flag.Parse()
 
 	fmt.Printf("Config: %+v\n", config)
@@ -165,6 +185,19 @@ func getEnvConfig() *config {
 		dbname = "ToW"
 	}
 
+	masterKeyStr := os.Getenv("MASTER_KEY")
+	var masterKey []byte
+	if len(masterKeyStr) != 0 {
+		masterKey, err := base64.RawURLEncoding.DecodeString(masterKeyStr)
+		if err != nil {
+			fmt.Println("Error loading master key command line args:", err)
+		}
+
+		if len(masterKey) != 32 {
+			fmt.Print("Error parsing master key. Key must be 32 bytes encoded in base64")
+		}
+	}
+
 	return &config{
 		Server: serverConfig{
 			IsTLS:         isTLS,
@@ -175,12 +208,13 @@ func getEnvConfig() *config {
 			Domain:        domain,
 		},
 		Database: databaseConfig{
-			UseSSL:   useSSL,
-			Host:     dbhost,
-			Port:     uint(dbport),
-			User:     dbuser,
-			Password: dbpassword,
-			Name:     dbname,
+			UseSSL:    useSSL,
+			Host:      dbhost,
+			Port:      uint(dbport),
+			User:      dbuser,
+			Password:  dbpassword,
+			Name:      dbname,
+			MasterKey: masterKey,
 		},
 	}
 }
