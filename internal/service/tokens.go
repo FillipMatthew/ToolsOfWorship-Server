@@ -14,8 +14,14 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewTokensService(config config.ServerConfig, keyStore domain.KeyStore) *TokensService {
-	return &TokensService{config: config, keyStore: keyStore}
+func NewTokensService(ctx context.Context, config config.ServerConfig, keyStore domain.KeyStore) *TokensService {
+	tokensService := &TokensService{config: config, keyStore: keyStore}
+	err := tokensService.initialise(ctx)
+	if err != nil {
+		return nil
+	}
+
+	return tokensService
 }
 
 type TokensService struct {
@@ -25,6 +31,36 @@ type TokensService struct {
 	signingKeys           map[uuid.UUID]domain.Key
 	currentEncryptionKey  domain.Key
 	previousEncryptionKey domain.Key
+}
+
+func (ts *TokensService) initialise(ctx context.Context) error {
+	signingKeys, err := ts.keyStore.GetSigningKeys(ctx)
+	if err != nil {
+		return err
+	}
+
+	ts.signingKeys = signingKeys
+	for _, key := range ts.signingKeys {
+		if ts.currentSigningKey.Expiry.IsZero() || (!key.Expiry.IsZero() && ts.currentSigningKey.Expiry.Unix() < key.Expiry.Unix()) {
+			ts.currentSigningKey = key
+		}
+	}
+
+	encryptionKeys, err := ts.keyStore.GetEncryptionKeys(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, key := range encryptionKeys {
+		if ts.currentEncryptionKey.Expiry.IsZero() || (!key.Expiry.IsZero() && ts.currentSigningKey.Expiry.Unix() < key.Expiry.Unix()) {
+			ts.previousEncryptionKey = ts.currentEncryptionKey
+			ts.currentEncryptionKey = key
+		} else if ts.previousEncryptionKey.Expiry.IsZero() || (!key.Expiry.IsZero() && ts.previousEncryptionKey.Expiry.Unix() < key.Expiry.Unix()) {
+			ts.previousEncryptionKey = key // If the first item is the latest key then the previous would not get set without this
+		}
+	}
+
+	return nil
 }
 
 func (ts *TokensService) SignJWT(ctx context.Context, payload map[string]any) (string, error) {

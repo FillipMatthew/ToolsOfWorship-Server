@@ -57,6 +57,7 @@ DB_PORT=5432
 DB_USER=user
 DB_PASSWORD=password
 DB_NAME=ToW
+MASTER_KEY=base64_encoded_32_byte_key  # Master key for key encryption in the DB
 ```
 
 ### Command Line Flags
@@ -74,6 +75,7 @@ DB_NAME=ToW
 -dbuser       Database user
 -dbpassword   Database password
 -dbname       Database name
+-masterKey    Base64 encoded 32-byte master key for encrypting keys in the DB
 ```
 
 ## Building and Running
@@ -90,25 +92,54 @@ go build -o bin/tow-server ./cmd/tow-server
 
 ## API Endpoints
 
-- POST `/login` - User authentication
-- POST `/register` - User registration
-- GET `/verifyemail` - Email verification
-- GET `/health` - Server health check
+### Authentication
+
+- POST `/login` - User authentication using basic auth
+- POST `/register` - User registration with email verification
+- GET `/verifyemail` - Email verification with token
+- GET `/health` - Server health check with DB status
 
 ## Project Structure
 
 ```
 ├── cmd/
-│   └── tow-server/       # Main application entry point
+│   └── tow-server/       # Main application entry point and configuration
 ├── internal/
 │   ├── api/             # API handlers and routing
+│   │   └── users/       # User-related API handlers
 │   ├── config/          # Configuration interfaces
 │   ├── db/              # Database implementations
+│   │   └── postgresql/  # PostgreSQL specific implementation
 │   ├── domain/          # Domain models and interfaces
+│   ├── keys/            # Cryptographic operations
 │   └── service/         # Business logic services
-├── templates/           # Email templates
+├── templates/           # HTML/Email templates
 └── bin/                # Compiled binaries
 ```
+
+## Development
+
+### Code Structure
+
+- Uses clean architecture principles
+- Separation of concerns between API, domain logic, and data access
+- Centralized configuration management
+- Secure token handling with key rotation
+
+### Testing
+
+Run tests with (not yet implemented):
+```bash
+go test ./...
+```
+
+### Security Features
+
+- JWT token-based authentication
+- Email verification system
+- Password hashing using bcrypt
+- Key rotation for signing and encryption
+- HTTPS/TLS support
 
 ## License
 

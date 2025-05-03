@@ -61,3 +61,27 @@ func NewDB(ctx context.Context, config config.DatabaseConfig) (*sql.DB, error) {
 
 	return db, nil
 }
+
+func PrepareDB(ctx context.Context, db *sql.DB) error {
+	_, err := db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS SignKeys (id UUID PRIMARY KEY, key BYTEA NOT NULL, expiry TIMESTAMPTZ NOT NULL)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS EncKeys (id UUID PRIMARY KEY, key BYTEA NOT NULL, expiry TIMESTAMPTZ NOT NULL)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Users (id UUID PRIMARY KEY, displayName VARCHAR(50) NOT NULL, isDeleted BOOLEAN DEFAULT FALSE NOT NULL)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS UserConnections (userId UUID NOT NULL, signInType INTEGER NOT NULL, accountId TEXT NOT NULL, authDetails TEXT)")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
