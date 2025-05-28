@@ -1,0 +1,114 @@
+/* Define color variables for light mode */
+:root {
+	--header-footer-background-colour: #183D3D;
+	--header-footer-text-colour: #B0BEC5;
+
+	--primary-colour: #93B1A6;
+	/* Light background color */
+	--secondary-colour: #5C8374;
+	/* Slightly lighter background color */
+	--accent-colour: #546E7A;
+	/* Accent color for light mode */
+	--text-colour: #37474F;
+	/* Dark text color for light mode */
+}
+
+/* Define color variables for dark mode */
+@media (prefers-color-scheme: dark) {
+	:root {
+		--header-footer-background-colour: #183D3D;
+		--header-footer-text-colour: #B0BEC5;
+
+		--primary-colour: #183D3D;
+		/* Dark background color */
+		--secondary-colour: #5C8374;
+		/* Slightly lighter background color */
+		--accent-colour: #93B1A6;
+		/* Accent color for dark mode */
+		--text-colour: #bbc;
+		/* Light text color for dark mode */
+	}
+}
+
+/* Reset default margin and padding */
+* {
+	margin: 0;
+	padding: 0;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+.wrapper {
+	box-sizing: border-box;
+	position: relative;
+	padding-bottom: 2em;
+	/* Height of footer */
+	min-height: 100%;
+}
+
+/* Global styles */
+body {
+	font-family: Arial, sans-serif;
+	background-color: var(--primary-colour);
+	color: var(--text-color);
+}
+
+/* Header styles */
+header {
+	background-color: var(--header-footer-background-colour);
+	color: var(--header-footer-text-colour);
+	text-align: center;
+	padding: 20px;
+}
+
+header h1 {
+	background-color: var(--header-footer-background-colour);
+	color: var(--header-footer-text-colour);
+}
+
+/* Navigation styles (if you have a navigation bar) */
+nav {
+	background-color: var(--secondary-colour);
+	padding: 10px;
+}
+
+/* Main content styles */
+.container {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 20px;
+}
+
+/* Call-to-action button */
+.cta-button {
+	display: inline-block;
+	background-color: var(--accent-colour);
+	color: var(--text-colour);
+	padding: 10px 20px;
+	text-decoration: none;
+	border-radius: 5px;
+	transition: background-color 0.3s ease;
+}
+
+.cta-button:hover {
+	background-color: var(--secondary-colour);
+}
+
+/* Footer styles */
+footer {
+	background-color: var(--header-footer-background-colour);
+	color: var(--header-footer-text-colour);
+	text-align: center;
+	padding-top: .5em;
+	padding-bottom: .5em;
+	width: 100%;
+	position: absolute;
+	bottom: 0;
+}
+
+footer hr {
+	margin-bottom: .5em;
+}

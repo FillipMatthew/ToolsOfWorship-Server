@@ -1,0 +1,20 @@
+[Unit]
+Description=Tools of Worship API and web host.
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=serviceuser
+Group=tow
+ExecStartPre=
+WorkingDirectory=/usr/local/lib/tools-of-worship/
+ExecStart=/usr/local/lib/tools-of-worship/bin/tow-server
+ExecStartPost=
+ExecStop=
+ExecReload=
+
+[Install]
+WantedBy=multi-user.target
