@@ -18,3 +18,7 @@ type DatabaseConfig interface {
 	GetName() string
 	GetMasterKey() []byte
 }
+
+type MailConfig interface {
+	GetMailKey() string
+}

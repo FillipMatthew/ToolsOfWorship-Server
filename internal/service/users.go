@@ -65,7 +65,7 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 		return errors.New("invalid email format")
 	}
 
-	displayNameRegex := regexp.MustCompile(`^[a-zA-Z0-9]{3,30}$`)
+	displayNameRegex := regexp.MustCompile(`^[a-zA-Z0-9 ]{3,30}$`)
 	if !displayNameRegex.MatchString(user.DisplayName) {
 		return errors.New("invalid display name")
 	}
@@ -87,6 +87,40 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 	err = u.sendVerificationMail(ctx, accountId, string(hashedPassword), user.DisplayName)
 	if err != nil {
 		return errors.New("unable to send verification email")
+	}
+
+	return nil
+}
+
+func (u *UserService) VerifyAccount(ctx context.Context, token string) error {
+	data, err := u.tokensService.VerifyEncryptedToken(ctx, token, nil, nil)
+	if err != nil {
+		fmt.Printf("failed to verify token: %v\n", err)
+		return fmt.Errorf("failed to verify token: %v", err)
+	}
+
+	sub, ok := data["sub"].(string)
+	if !ok {
+		fmt.Printf("invalid token data[sub]: %v\n", data)
+		return errors.New("invalid token data[sub]")
+	}
+
+	var verificationDetails struct {
+		Email       string `json:"email"`
+		AuthDetails string `json:"authDetails"`
+		DisplayName string `json:"displayName"`
+	}
+
+	err = json.Unmarshal([]byte(sub), &verificationDetails)
+	if err != nil {
+		fmt.Printf("invalid token data: %v\n", sub)
+		return errors.New("invalid token data")
+	}
+
+	_, err = u.createNewUser(ctx, verificationDetails.Email, verificationDetails.AuthDetails, verificationDetails.DisplayName)
+	if err != nil {
+		fmt.Printf("failed to create new user: %v", err)
+		return fmt.Errorf("failed to create new user: %v", err)
 	}
 
 	return nil
@@ -157,7 +191,7 @@ func (u *UserService) sendVerificationMail(ctx context.Context, email, authDetai
 
 	contentStr := strings.ReplaceAll(string(content), "@token", token)
 
-	err = u.mailService.SendNoReplyEmail(email, "Please verify your email address", contentStr)
+	err = u.mailService.SendNoReplyEmail(displayName, email, "Please verify your email address", contentStr)
 	if err != nil {
 		return err
 	}

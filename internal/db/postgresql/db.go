@@ -21,6 +21,7 @@ func NewDB(ctx context.Context, config config.DatabaseConfig) (*sql.DB, error) {
 
 	db, err := sql.Open("postgres", postgresConnStr)
 	if err != nil {
+		fmt.Printf("error opening database: %v", err)
 		return nil, fmt.Errorf("error opening database: %v", err)
 	}
 
@@ -28,20 +29,26 @@ func NewDB(ctx context.Context, config config.DatabaseConfig) (*sql.DB, error) {
 
 	err = db.PingContext(ctx)
 	if err != nil {
+		fmt.Printf("cannot connect to database: %v", err)
 		return nil, fmt.Errorf("cannot connect to database: %v", err)
 	}
 
 	// Create DB if not existing
-	queryStr := fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s'", config.GetName())
-	row := db.QueryRowContext(ctx, queryStr)
-	if row.Err() != nil {
-		queryStr = fmt.Sprintf("CREATE DATABASE %s", config.GetName())
+	row := db.QueryRowContext(ctx, "SELECT 1 FROM pg_database WHERE datname = $1", config.GetName())
+
+	var exists int
+	err = row.Scan(&exists)
+	if err == sql.ErrNoRows {
+		queryStr := fmt.Sprintf("CREATE DATABASE %s", config.GetName())
 		_, err := db.ExecContext(ctx, queryStr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create database: %v", row.Err())
+			fmt.Printf("failed to create database: %v", err)
+			return nil, fmt.Errorf("failed to create database: %v", err)
 		}
+	} else if err != nil {
+		fmt.Printf("failed to check database state: %v", row.Err())
+		return nil, fmt.Errorf("failed to check database state: %v", row.Err())
 	}
-
 	db.Close()
 
 	// Open actual DB

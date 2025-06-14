@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api"
-	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
 )
 
@@ -22,6 +21,10 @@ type userSignInService interface {
 
 type userRegisterationService interface {
 	Register(ctx context.Context, user domain.User, accountId, password string) error
+}
+
+type userVerificationService interface {
+	VerifyAccount(ctx context.Context, token string) error
 }
 
 func loginHandler(l loginService) api.HandlerFunc {
@@ -65,10 +68,16 @@ func registerUserHandler(ur userRegisterationService) api.HandlerFunc {
 	}
 }
 
-func verifyEmailHandler(serverConfig config.ServerConfig, ur userRegisterationService) api.HandlerFunc {
+func verifyEmailHandler(uv userVerificationService) api.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
-		http.Redirect(w, r, serverConfig.GetDomain()+"/EmailVerificationFailed.html", http.StatusTemporaryRedirect)
-		http.Redirect(w, r, serverConfig.GetDomain()+"/EmailVerificationSuccess.html", http.StatusTemporaryRedirect)
+		err := uv.VerifyAccount(r.Context(), r.URL.Query().Get("token"))
+
+		if err != nil {
+			http.Redirect(w, r, "EmailVerificationFailed.html", http.StatusTemporaryRedirect)
+		} else {
+			http.Redirect(w, r, "EmailVerificationSuccess.html", http.StatusTemporaryRedirect)
+		}
+
 		return nil
 	}
 }

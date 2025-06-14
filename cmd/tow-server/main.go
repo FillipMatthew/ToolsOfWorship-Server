@@ -44,10 +44,10 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 	}
 
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
-	mailService := service.NewMailService()
+	mailService := service.NewMailService(config, config)
 	userService := service.NewUserService(postgresql.NewUserStore(db), *tokensService, *mailService)
 
-	rt := api.ComposeRouters(users.NewRouter(config, userService))
+	rt := api.ComposeRouters(users.NewRouter(userService))
 
 	server := api.NewServer(logger, config, healthCheck(db), rt)
 	return server.Start(ctx)

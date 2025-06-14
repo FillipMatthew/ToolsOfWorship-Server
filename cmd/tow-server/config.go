@@ -28,9 +28,14 @@ type databaseConfig struct {
 	MasterKey []byte `json:"masterKey"`
 }
 
+type mailConfig struct {
+	Key string `json:"key"`
+}
+
 type config struct {
 	Server   serverConfig   `json:"server"`
 	Database databaseConfig `json:"database"`
+	Mail     mailConfig     `json:"mail"`
 }
 
 func (config *config) IsTLS() bool {
@@ -85,6 +90,10 @@ func (config *config) GetMasterKey() []byte {
 	return config.Database.MasterKey
 }
 
+func (config *config) GetMailKey() string {
+	return config.Mail.Key
+}
+
 func getConfig() *config {
 	config := getEnvConfig()
 
@@ -120,6 +129,7 @@ func getConfig() *config {
 			fmt.Print("Error parsing master key. Key must be 32 bytes encoded in base64")
 		}
 	}
+	flag.StringVar(&config.Mail.Key, "mailkey", config.Mail.Key, "Mail API key")
 
 	flag.Parse()
 
@@ -198,6 +208,8 @@ func getEnvConfig() *config {
 		}
 	}
 
+	mailkey := os.Getenv("MAIL_KEY")
+
 	return &config{
 		Server: serverConfig{
 			IsTLS:         isTLS,
@@ -215,6 +227,9 @@ func getEnvConfig() *config {
 			Password:  dbpassword,
 			Name:      dbname,
 			MasterKey: masterKey,
+		},
+		Mail: mailConfig{
+			Key: mailkey,
 		},
 	}
 }
