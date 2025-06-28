@@ -22,6 +22,7 @@ func WithLog(logger *log.Logger) MiddlewareFunc {
 
 			if err != nil {
 				logger.Printf("request failed:\n%v", fields)
+				logger.Printf("error: %v", err)
 				return err
 			}
 

@@ -4,18 +4,18 @@ Tools of Worship server implemented in Go, providing backend services for the To
 
 ## Features
 
-- User authentication and authorization
+- User authentication and authorization with JWT
 - Email verification system
-- Secure token management
-- PostgreSQL database integration
-- HTTPS/TLS support
-- Configurable server settings
+- Secure token management with key rotation
+- PostgreSQL database integration with automatic database creation
+- HTTPS/TLS support with configurable certificates
+- Configurable server settings via environment variables, JSON file, and command-line flags
 
 ## Prerequisites
 
 - Go 1.23.1 or higher
 - PostgreSQL database
-- SMTP server for email functionality
+- Mailgun API for email functionality
 
 ## Installation
 
@@ -69,13 +69,14 @@ MASTER_KEY=base64_encoded_32_byte_key  # Master key for key encryption in the DB
 -key          TLS private key path
 -public       Public directory path
 -domain       Base domain for server endpoints
--dbssl        Use SSL for database
--dbhost       Database host
--dbport       Database port
--dbuser       Database user
--dbpassword   Database password
--dbname       Database name
+-dbssl        Use SSL for database (default: true)
+-dbhost       Database host (default: localhost)
+-dbport       Database port (default: 5432)
+-dbuser       Database user (default: user)
+-dbpassword   Database password (default: password)
+-dbname       Database name (default: ToW)
 -masterKey    Base64 encoded 32-byte master key for encrypting keys in the DB
+-mailkey      API key for sending emails
 ```
 
 ## Building and Running
@@ -94,10 +95,10 @@ go build -o bin/tow-server ./cmd/tow-server
 
 ### Authentication
 
-- POST `/login` - User authentication using basic auth
-- POST `/register` - User registration with email verification
-- GET `/verifyemail` - Email verification with token
-- GET `/health` - Server health check with DB status
+- POST `/api/user/login` - User authentication using email and password
+- POST `/api/user/register` - User registration with email verification
+- GET `/api/user/verifyemail` - Email verification with token
+- GET `/health` - Server health check with database status
 
 ## Project Structure
 
@@ -132,13 +133,14 @@ Run tests with (not yet implemented):
 ```bash
 go test ./...
 ```
+(Note: Ensure database and environment variables are properly configured before running tests.)
 
 ### Security Features
 
-- JWT token-based authentication
-- Email verification system
-- Password hashing using bcrypt
-- Key rotation for signing and encryption
+- JWT token-based authentication with HMAC-SHA256
+- Email verification
+- Password hashing using bcrypt for secure storage
+- Key rotation for signing and encryption with AES-GCM
 - HTTPS/TLS support
 
 ## License

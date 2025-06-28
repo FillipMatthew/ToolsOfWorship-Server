@@ -5,8 +5,8 @@ import (
 )
 
 type User struct {
-	Id          uuid.UUID `json:"id"`
-	DisplayName string    `json:"displayName"`
+	Token       string `json:"token"`
+	DisplayName string `json:"displayName"`
 }
 
 type RegisterUser struct {

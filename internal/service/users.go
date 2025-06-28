@@ -25,37 +25,44 @@ type UserService struct {
 	mailService   MailService
 }
 
-func (u *UserService) Login(ctx context.Context, accountId, password string) (domain.User, error) {
+func (u *UserService) Login(ctx context.Context, accountId, password string) (domain.Token, domain.User, error) {
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(accountId) {
-		return domain.User{}, errors.New("invalid email format")
+		return "", domain.User{}, errors.New("invalid email format")
 	}
+
+	accountId = strings.ToLower(accountId)
 
 	userConnection, err := u.userStore.GetUserConnection(ctx, domain.LocalUser, accountId)
 	if err != nil {
-		return domain.User{}, err
+		return "", domain.User{}, errors.New("login failed, invalid credentials")
 	}
 
 	bytePassword := []byte(password)
 	byteHash := []byte(*userConnection.AuthDetails)
 	err = bcrypt.CompareHashAndPassword(byteHash, bytePassword)
 	if err != nil {
-		return domain.User{}, errors.New("login failed")
+		return "", domain.User{}, errors.New("login failed, invalid credentials")
 	}
 
 	user, err := u.userStore.GetUser(ctx, userConnection.UserId)
 	if err != nil {
-		return domain.User{}, errors.New("unable to fetch user")
+		return "", domain.User{}, errors.New("unable to fetch user")
 	}
 
-	return user, nil
+	token, err := u.generateUserAuthToken(ctx, user)
+	if err != nil {
+		return "", domain.User{}, errors.New("unable to generate auth token")
+	}
+
+	return token, user, nil
 }
 
-func (u *UserService) SignIn(ctx context.Context, userConnection domain.UserConnection) (domain.User, error) {
+func (u *UserService) SignIn(ctx context.Context, userConnection domain.UserConnection) (domain.Token, domain.User, error) {
 	if userConnection.SignInType == domain.LocalUser && userConnection.AuthDetails != nil {
 		return u.Login(ctx, userConnection.AccountId, *userConnection.AuthDetails)
 	} else {
-		return domain.User{}, errors.New("invalid signin")
+		return "", domain.User{}, errors.New("invalid signin")
 	}
 }
 
@@ -64,6 +71,8 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 	if !emailRegex.MatchString(accountId) {
 		return errors.New("invalid email format")
 	}
+
+	accountId = strings.ToLower(accountId)
 
 	displayNameRegex := regexp.MustCompile(`^[a-zA-Z0-9 ]{3,30}$`)
 	if !displayNameRegex.MatchString(user.DisplayName) {
@@ -92,8 +101,8 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 	return nil
 }
 
-func (u *UserService) VerifyAccount(ctx context.Context, token string) error {
-	data, err := u.tokensService.VerifyEncryptedToken(ctx, token, nil, nil)
+func (u *UserService) VerifyAccount(ctx context.Context, token domain.Token) error {
+	data, err := u.tokensService.VerifyEncryptedToken(ctx, string(token), nil, nil)
 	if err != nil {
 		fmt.Printf("failed to verify token: %v\n", err)
 		return fmt.Errorf("failed to verify token: %v", err)
@@ -197,6 +206,32 @@ func (u *UserService) sendVerificationMail(ctx context.Context, email, authDetai
 	}
 
 	return nil
+}
+
+func (u *UserService) generateUserAuthToken(ctx context.Context, user domain.User) (domain.Token, error) {
+	var tokenDetails struct {
+		UserId uuid.UUID `json:"userId"`
+	}
+
+	tokenDetails.UserId = user.Id
+
+	jsonData, err := json.Marshal(tokenDetails)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal user details: %v", err)
+	}
+
+	payload := map[string]any{
+		"iat": time.Now().Unix(),
+		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"sub": string(jsonData),
+	}
+
+	token, err := u.tokensService.SignJWT(ctx, payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %v", err)
+	}
+
+	return domain.Token(token), nil
 }
 
 //func (u *UserService) GetUser(ctx context.Context, id uuid.UUID) (*domain.User, error) {

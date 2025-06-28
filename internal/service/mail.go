@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 )
@@ -20,6 +21,49 @@ type MailService struct {
 }
 
 func (m *MailService) SendNoReplyEmail(recipientName, emailAddress, subject, content string) error {
+	return m.sendMailMailGun("no-reply", recipientName, emailAddress, subject, content)
+}
+
+func (m *MailService) sendMailMailGun(from, recipientName, emailAddress, subject, content string) error {
+	endpoint := "https://api.eu.mailgun.net/v3/toolsofworship.com/messages"
+
+	data := url.Values{}
+	data.Set("from", "Tools of Worship - no-reply <"+from+"@"+m.serverConfig.GetDomain()+">")
+	data.Set("to", recipientName+"<"+emailAddress+">")
+	data.Set("subject", subject)
+	data.Set("html", content)
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBufferString(data.Encode()))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return fmt.Errorf("Error creating request: %v", err)
+	}
+
+	// Basic auth: username "api", password is your API key
+	req.SetBasicAuth("api", m.config.GetMailKey())
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println("Request failed:", err)
+		return fmt.Errorf("Request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Println("Status:", resp.Status)
+	fmt.Println("Body:", string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Mailgun API returned status: %s", resp.Status)
+	}
+
+	fmt.Println("Email sent successfully.")
+
+	return nil
+}
+
+func (m *MailService) sendMailSendGrid(from, recipientName, emailAddress, subject, content string) error {
 	url := "https://api.sendgrid.com/v3/mail/send"
 
 	payload := map[string]interface{}{
@@ -32,8 +76,8 @@ func (m *MailService) SendNoReplyEmail(recipientName, emailAddress, subject, con
 			},
 		},
 		"from": map[string]string{
-			"email": "no-reply@" + m.serverConfig.GetDomain(),
-			"name":  "Tools of Worship",
+			"email": from + "@" + m.serverConfig.GetDomain(),
+			"name":  "Tools of Worship - no-reply",
 		},
 		"content": []map[string]string{
 			{
@@ -58,8 +102,7 @@ func (m *MailService) SendNoReplyEmail(recipientName, emailAddress, subject, con
 	req.Header.Set("Authorization", "Bearer "+m.config.GetMailKey())
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println("Request failed:", err)
 		return fmt.Errorf("Request failed: %v", err)

@@ -17,8 +17,8 @@ type Router struct {
 
 func (u *Router) Routes() []api.Route {
 	return []api.Route{
-		{Method: http.MethodPost, Pattern: "/login", Handler: loginHandler(u.userService)},
-		{Method: http.MethodPost, Pattern: "/register", Handler: registerUserHandler(u.userService)},
-		{Method: http.MethodGet, Pattern: "/verifyemail", Handler: verifyEmailHandler(u.userService)},
+		{Method: http.MethodPost, Pattern: "/api/user/login", Handler: loginHandler(u.userService)},
+		{Method: http.MethodPost, Pattern: "/api/user/register", Handler: registerUserHandler(u.userService)},
+		{Method: http.MethodGet, Pattern: "/api/user/verifyemail", Handler: verifyEmailHandler(u.userService)},
 	}
 }

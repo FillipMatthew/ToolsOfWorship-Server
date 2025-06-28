@@ -12,11 +12,11 @@ import (
 )
 
 type loginService interface {
-	Login(ctx context.Context, username, password string) (domain.User, error)
+	Login(ctx context.Context, username, password string) (domain.Token, domain.User, error)
 }
 
 type userSignInService interface {
-	SignIn(ctx context.Context, userConnection domain.UserConnection) (domain.User, error)
+	SignIn(ctx context.Context, userConnection domain.UserConnection) (domain.Token, domain.User, error)
 }
 
 type userRegisterationService interface {
@@ -24,7 +24,7 @@ type userRegisterationService interface {
 }
 
 type userVerificationService interface {
-	VerifyAccount(ctx context.Context, token string) error
+	VerifyAccount(ctx context.Context, Token domain.Token) error
 }
 
 func loginHandler(l loginService) api.HandlerFunc {
@@ -34,7 +34,7 @@ func loginHandler(l loginService) api.HandlerFunc {
 			return &api.Error{Code: http.StatusUnauthorized, Message: "user not authorised", Err: api.ErrorUnauthorized}
 		}
 
-		user, err := l.Login(r.Context(), username, pass)
+		token, user, err := l.Login(r.Context(), username, pass)
 
 		switch {
 		case errors.Is(err, api.ErrorUnauthorized):
@@ -43,7 +43,7 @@ func loginHandler(l loginService) api.HandlerFunc {
 			return &api.Error{Code: http.StatusInternalServerError, Message: "user login failed", Err: err}
 		}
 
-		api.RespondJSON(w, User{Id: user.Id, DisplayName: user.DisplayName}, http.StatusOK)
+		api.RespondJSON(w, User{Token: string(token), DisplayName: user.DisplayName}, http.StatusOK)
 		return nil
 	}
 }
@@ -62,7 +62,6 @@ func registerUserHandler(ur userRegisterationService) api.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusCreated)
-		w.Header().Set("Content-Type", "text/plain;charset=UTF-8")
 		fmt.Fprintf(w, "Pending email verification.")
 		return nil
 	}
@@ -70,12 +69,12 @@ func registerUserHandler(ur userRegisterationService) api.HandlerFunc {
 
 func verifyEmailHandler(uv userVerificationService) api.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
-		err := uv.VerifyAccount(r.Context(), r.URL.Query().Get("token"))
+		err := uv.VerifyAccount(r.Context(), domain.Token(r.URL.Query().Get("token")))
 
 		if err != nil {
-			http.Redirect(w, r, "EmailVerificationFailed.html", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, "/EmailVerificationFailed.html", http.StatusTemporaryRedirect)
 		} else {
-			http.Redirect(w, r, "EmailVerificationSuccess.html", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, "/EmailVerificationSuccess.html", http.StatusTemporaryRedirect)
 		}
 
 		return nil

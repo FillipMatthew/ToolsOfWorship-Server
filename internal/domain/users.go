@@ -10,10 +10,12 @@ type SignInType int32
 
 const (
 	None SignInType = iota
-	Token
 	LocalUser
+	TokenSignIn
 	GoogleSignIn
 )
+
+type Token string
 
 type User struct {
 	Id          uuid.UUID
