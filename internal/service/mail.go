@@ -28,7 +28,7 @@ func (m *MailService) sendMailMailGun(from, recipientName, emailAddress, subject
 	endpoint := "https://api.eu.mailgun.net/v3/toolsofworship.com/messages"
 
 	data := url.Values{}
-	data.Set("from", "Tools of Worship - no-reply <"+from+"@"+m.serverConfig.GetDomain()+">")
+	data.Set("from", "Tools of Worship <"+from+"@"+m.serverConfig.GetDomain()+">")
 	data.Set("to", recipientName+"<"+emailAddress+">")
 	data.Set("subject", subject)
 	data.Set("html", content)
@@ -77,7 +77,7 @@ func (m *MailService) sendMailSendGrid(from, recipientName, emailAddress, subjec
 		},
 		"from": map[string]string{
 			"email": from + "@" + m.serverConfig.GetDomain(),
-			"name":  "Tools of Worship - no-reply",
+			"name":  "Tools of Worship",
 		},
 		"content": []map[string]string{
 			{

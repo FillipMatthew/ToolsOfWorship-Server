@@ -57,7 +57,7 @@ func (ks *KeyStore) GetEncryptionKey(ctx context.Context, id uuid.UUID) (domain.
 }
 
 func (ks *KeyStore) GetSigningKeys(ctx context.Context) (map[uuid.UUID]domain.Key, error) {
-	rows, err := ks.db.QueryContext(ctx, "SELECT (id, key, expiry) FROM SignKeys")
+	rows, err := ks.db.QueryContext(ctx, "SELECT id, key, expiry FROM SignKeys")
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +66,8 @@ func (ks *KeyStore) GetSigningKeys(ctx context.Context) (map[uuid.UUID]domain.Ke
 	keysMap := make(map[uuid.UUID]domain.Key)
 
 	for rows.Next() {
-		var key domain.Key
-		err := rows.Scan(key.Id, key.Key, key.Expiry)
+		key := domain.Key{}
+		err := rows.Scan(&key.Id, &key.Key, &key.Expiry)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (ks *KeyStore) GetSigningKeys(ctx context.Context) (map[uuid.UUID]domain.Ke
 }
 
 func (ks *KeyStore) GetEncryptionKeys(ctx context.Context) (map[uuid.UUID]domain.Key, error) {
-	rows, err := ks.db.QueryContext(ctx, "SELECT (id, key, expiry) FROM EncKeys")
+	rows, err := ks.db.QueryContext(ctx, "SELECT id, key, expiry FROM EncKeys")
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,8 @@ func (ks *KeyStore) GetEncryptionKeys(ctx context.Context) (map[uuid.UUID]domain
 	keysMap := make(map[uuid.UUID]domain.Key)
 
 	for rows.Next() {
-		var key domain.Key
-		err := rows.Scan(key.Id, key.Key, key.Expiry)
+		key := domain.Key{}
+		err := rows.Scan(&key.Id, &key.Key, &key.Expiry)
 		if err != nil {
 			return nil, err
 		}

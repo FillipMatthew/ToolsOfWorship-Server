@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ func NewTokensService(ctx context.Context, config config.ServerConfig, keyStore 
 	tokensService := &TokensService{config: config, keyStore: keyStore}
 	err := tokensService.initialise(ctx)
 	if err != nil {
+		fmt.Printf("failed to initialise tokens service: %v\n", err)
 		return nil
 	}
 
@@ -36,7 +38,7 @@ type TokensService struct {
 func (ts *TokensService) initialise(ctx context.Context) error {
 	signingKeys, err := ts.keyStore.GetSigningKeys(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get signing keys: %v", err)
 	}
 
 	ts.signingKeys = signingKeys
@@ -48,7 +50,7 @@ func (ts *TokensService) initialise(ctx context.Context) error {
 
 	encryptionKeys, err := ts.keyStore.GetEncryptionKeys(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get encryption keys: %v", err)
 	}
 
 	for _, key := range encryptionKeys {

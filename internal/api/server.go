@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -36,7 +35,7 @@ func NewServer(logger *log.Logger, config config.ServerConfig, healthChecker Hea
 func (s *Server) Start(ctx context.Context) error {
 	ctx, s.cancel = context.WithCancel(ctx)
 
-	s.Logger.Println("initialising server:")
+	s.Logger.Println("starting server:")
 	s.Logger.Printf("address: '%s'\n", s.config.GetListenAddress())
 
 	mux := http.NewServeMux()
@@ -116,6 +115,7 @@ func (s *Server) Stop() error {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	hh, err := s.healthChecker.CheckHealth(r.Context())
 	if err != nil {
+		//w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		RespondError(w, &Error{Code: http.StatusInternalServerError, Message: err.Error(), Err: err})
 		return
 	}
@@ -123,13 +123,8 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, HealthResponse{Health: hh}, http.StatusOK)
 }
 
-func (s *Server) healthCheckHandler(res http.ResponseWriter, req *http.Request) {
-	res.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
-	fmt.Fprintf(res, "ok\n")
-}
-
 func (s *Server) setupHandlers(config config.ServerConfig, mux *http.ServeMux) {
-	mux.HandleFunc("/health", s.healthCheckHandler)
+	mux.HandleFunc("/health", s.health)
 	mux.Handle("/", http.FileServer(http.Dir(config.GetPublicDir())))
 
 	middlewareFunc := ChainMiddleware(
