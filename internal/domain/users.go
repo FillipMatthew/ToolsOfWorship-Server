@@ -30,8 +30,8 @@ type UserConnection struct {
 }
 
 type UserStoreReader interface {
-	GetUser(ctx context.Context, id uuid.UUID) (User, error)
-	GetUserConnection(ctx context.Context, signInType SignInType, accountId string) (UserConnection, error)
+	GetUser(ctx context.Context, id uuid.UUID) (*User, error)
+	GetUserConnection(ctx context.Context, signInType SignInType, accountId string) (*UserConnection, error)
 }
 
 type UserStoreWriter interface {

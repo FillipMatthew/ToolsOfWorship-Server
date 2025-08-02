@@ -12,19 +12,19 @@ import (
 )
 
 type loginService interface {
-	Login(ctx context.Context, username, password string) (domain.Token, domain.User, error)
+	Login(ctx context.Context, username, password string) (*domain.Token, *domain.User, error)
 }
 
 type userSignInService interface {
-	SignIn(ctx context.Context, userConnection domain.UserConnection) (domain.Token, domain.User, error)
+	SignIn(ctx context.Context, userConnection domain.UserConnection) (*domain.Token, *domain.User, error)
 }
 
 type userRegisterationService interface {
 	Register(ctx context.Context, user domain.User, accountId, password string) error
 }
 
-type userVerificationService interface {
-	VerifyAccount(ctx context.Context, Token domain.Token) error
+type userAccountVerificationService interface {
+	VerifyAccount(ctx context.Context, token domain.Token) error
 }
 
 func loginHandler(l loginService) api.HandlerFunc {
@@ -43,7 +43,7 @@ func loginHandler(l loginService) api.HandlerFunc {
 			return &api.Error{Code: http.StatusInternalServerError, Message: "user login failed", Err: err}
 		}
 
-		api.RespondJSON(w, User{Token: string(token), DisplayName: user.DisplayName}, http.StatusOK)
+		api.RespondJSON(w, User{Token: string(*token), DisplayName: user.DisplayName}, http.StatusOK)
 		return nil
 	}
 }
@@ -61,13 +61,13 @@ func registerUserHandler(ur userRegisterationService) api.HandlerFunc {
 			return &api.Error{Code: http.StatusInternalServerError, Message: "user registeration failed", Err: err}
 		}
 
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Pending email verification.")
 		return nil
 	}
 }
 
-func verifyEmailHandler(uv userVerificationService) api.HandlerFunc {
+func verifyEmailHandler(uv userAccountVerificationService) api.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		err := uv.VerifyAccount(r.Context(), domain.Token(r.URL.Query().Get("token")))
 

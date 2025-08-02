@@ -15,10 +15,10 @@ type Router struct {
 	userService *service.UserService
 }
 
-func (u *Router) Routes() []api.Route {
+func (r *Router) Routes() []api.Route {
 	return []api.Route{
-		{Method: http.MethodPost, Pattern: "/api/user/login", Handler: loginHandler(u.userService)},
-		{Method: http.MethodPost, Pattern: "/api/user/register", Handler: registerUserHandler(u.userService)},
-		{Method: http.MethodGet, Pattern: "/api/user/verifyemail", Handler: verifyEmailHandler(u.userService)},
+		{Method: http.MethodPost, Pattern: "/api/user/login", Handler: loginHandler(r.userService)},
+		{Method: http.MethodPost, Pattern: "/api/user/register", Handler: registerUserHandler(r.userService)},
+		{Method: http.MethodGet, Pattern: "/api/user/verifyemail", Handler: verifyEmailHandler(r.userService)},
 	}
 }

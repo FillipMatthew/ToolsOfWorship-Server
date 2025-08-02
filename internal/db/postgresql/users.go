@@ -16,23 +16,23 @@ type UserStore struct {
 	db *sql.DB
 }
 
-func (u *UserStore) GetUser(ctx context.Context, id uuid.UUID) (domain.User, error) {
-	user := domain.User{Id: id}
+func (u *UserStore) GetUser(ctx context.Context, id uuid.UUID) (*domain.User, error) {
+	user := &domain.User{Id: id}
 
 	err := u.db.QueryRowContext(ctx, "SELECT displayName FROM Users WHERE id=$1", id).Scan(&user.DisplayName)
 	if err != nil {
-		return domain.User{}, err
+		return nil, err
 	}
 
 	return user, nil
 }
 
-func (u *UserStore) GetUserConnection(ctx context.Context, signInType domain.SignInType, accountId string) (domain.UserConnection, error) {
-	conn := domain.UserConnection{SignInType: signInType, AccountId: accountId}
+func (u *UserStore) GetUserConnection(ctx context.Context, signInType domain.SignInType, accountId string) (*domain.UserConnection, error) {
+	conn := &domain.UserConnection{SignInType: signInType, AccountId: accountId}
 
 	err := u.db.QueryRowContext(ctx, "SELECT userId, authDetails FROM UserConnections WHERE signInType=$1 AND accountId=$2", signInType, accountId).Scan(&conn.UserId, &conn.AuthDetails)
 	if err != nil {
-		return domain.UserConnection{}, err
+		return nil, err
 	}
 
 	return conn, nil
