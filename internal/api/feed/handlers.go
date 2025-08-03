@@ -3,6 +3,7 @@ package feed
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/contextkeys"
@@ -10,7 +11,7 @@ import (
 )
 
 type feedService interface {
-	List(ctx context.Context, user domain.User) ([]domain.Post, error)
+	List(ctx context.Context, user domain.User, limit *int, before *time.Time, after *time.Time) ([]domain.Post, error)
 	Post(ctx context.Context, user domain.User, post domain.Post) error
 }
 
@@ -39,6 +40,7 @@ func post(f feedService) api.HandlerFunc {
 			return &api.Error{Code: http.StatusInternalServerError, Message: "failed to post", Err: err}
 		}
 
+		w.WriteHeader(http.StatusOK)
 		return nil
 	}
 }

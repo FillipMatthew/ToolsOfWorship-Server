@@ -90,5 +90,15 @@ func PrepareDB(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Posts (id UUID PRIMARY KEY, authorId UUID NOT NULL, fellowshipId UUID, circleId UUID, dateTime TIMESTAMPTZ NOT NULL, heading VARCHAR(80), article TEXT)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX idx_posts_datetime ON Posts(dateTime)")
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
