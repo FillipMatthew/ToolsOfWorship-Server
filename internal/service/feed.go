@@ -33,28 +33,33 @@ func (f *FeedService) List(ctx context.Context, user domain.User, limit *int, be
 	return f.feedStore.GetPosts(ctx, fellowshipIDs, circleIDs, limit, before, after)
 }
 
-func (f *FeedService) Post(ctx context.Context, user domain.User, post domain.Post) error {
-	if post.FellowshipId != uuid.Nil && post.CircleId != uuid.Nil {
+func (f *FeedService) Post(ctx context.Context, user domain.User, fellowshipId uuid.UUID, circleId uuid.UUID, heading string, article string) error {
+	if fellowshipId != uuid.Nil && circleId != uuid.Nil {
 		return fmt.Errorf("cannot be post to both fellowship and circle")
-	} else if post.FellowshipId == uuid.Nil && post.CircleId == uuid.Nil {
+	} else if fellowshipId == uuid.Nil && circleId == uuid.Nil {
 		return fmt.Errorf("post must be associated with either a fellowship or a circle")
 	}
 
-	if post.FellowshipId != uuid.Nil {
-		if canPost, err := f.fellowshipStore.CanUserPostToFellowship(ctx, user.Id, post.FellowshipId); err != nil {
-			return fmt.Errorf("unable to check user permissions for fellowship %s: %v", post.FellowshipId, err)
+	if fellowshipId != uuid.Nil {
+		if canPost, err := f.fellowshipStore.CanUserPostToFellowship(ctx, user.Id, fellowshipId); err != nil {
+			return fmt.Errorf("unable to check user permissions for fellowship %s: %v", fellowshipId, err)
 		} else if !canPost {
-			return fmt.Errorf("user %s cannot post to fellowship %s", user.Id, post.FellowshipId)
+			return fmt.Errorf("user %s cannot post to fellowship %s", user.Id, fellowshipId)
 		}
 	}
 
-	if post.CircleId != uuid.Nil {
-		if canPost, err := f.circleStore.CanUserPostToCircle(ctx, user.Id, post.CircleId); err != nil {
-			return fmt.Errorf("unable to check user permissions for circle %s: %v", post.CircleId, err)
+	if circleId != uuid.Nil {
+		if canPost, err := f.circleStore.CanUserPostToCircle(ctx, user.Id, circleId); err != nil {
+			return fmt.Errorf("unable to check user permissions for circle %s: %v", circleId, err)
 		} else if !canPost {
-			return fmt.Errorf("user %s cannot post to circle %s", user.Id, post.CircleId)
+			return fmt.Errorf("user %s cannot post to circle %s", user.Id, circleId)
 		}
 	}
 
-	return f.Post(ctx, user, post)
+	uuid, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("failed to generate post ID: %v", err)
+	}
+
+	return f.feedStore.CreatePost(ctx, domain.Post{Id: uuid, AuthorId: user.Id, FellowshipId: fellowshipId, CircleId: circleId, Posted: time.Now(), Heading: heading, Article: article})
 }

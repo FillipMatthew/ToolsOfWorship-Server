@@ -80,7 +80,7 @@ func PrepareDB(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Users (id UUID PRIMARY KEY, displayName VARCHAR(50) NOT NULL, isDeleted BOOLEAN DEFAULT FALSE NOT NULL)")
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Users (id UUID PRIMARY KEY, displayName VARCHAR(50) NOT NULL, created TIMESTAMPTZ NOT NULL, isDeleted BOOLEAN DEFAULT FALSE NOT NULL)")
 	if err != nil {
 		return err
 	}
@@ -90,12 +90,32 @@ func PrepareDB(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Posts (id UUID PRIMARY KEY, authorId UUID NOT NULL, fellowshipId UUID, circleId UUID, dateTime TIMESTAMPTZ NOT NULL, heading VARCHAR(80), article TEXT)")
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Fellowships (id UUID PRIMARY KEY, name TEXT NOT NULL, creator UUID NOT NULL)")
 	if err != nil {
 		return err
 	}
 
-	_, err = db.ExecContext(ctx, "CREATE INDEX idx_posts_datetime ON Posts(dateTime)")
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS FellowshipMembers (fellowshipId UUID, userId UUID, access INTEGER NOT NULL, PRIMARY KEY(fellowshipId, userId))")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS FellowshipCircles (id UUID PRIMARY KEY, fellowshipId UUID NOT NULL, name TEXT NOT NULL, type INTEGER NOT NULL, creator UUID NOT NULL)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS CircleMembers (circleId UUID, userId UUID, access INTEGER NOT NULL, PRIMARY KEY(circleId, userId))")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS Posts (id UUID PRIMARY KEY, authorId UUID NOT NULL, fellowshipId UUID, circleId UUID, posted TIMESTAMPTZ NOT NULL, heading VARCHAR(80), article TEXT)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX idx_posts_posted ON Posts(posted)")
 	if err != nil {
 		return err
 	}

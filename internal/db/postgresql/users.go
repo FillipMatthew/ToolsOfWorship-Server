@@ -19,7 +19,7 @@ type UserStore struct {
 func (u *UserStore) GetUser(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	user := &domain.User{Id: id}
 
-	err := u.db.QueryRowContext(ctx, "SELECT displayName FROM Users WHERE id=$1", id).Scan(&user.DisplayName)
+	err := u.db.QueryRowContext(ctx, "SELECT displayName, created FROM Users WHERE id=$1", id).Scan(&user.DisplayName, &user.Created)
 	if err != nil {
 		return nil, err
 	}
@@ -43,9 +43,8 @@ func (u *UserStore) CreateUser(ctx context.Context, user domain.User) error {
 		panic("invalid user id")
 	}
 
-	_, err := u.db.ExecContext(ctx, "INSERT INTO Users (id, displayName) VALUES ($1, $2)", user.Id, user.DisplayName)
+	_, err := u.db.ExecContext(ctx, "INSERT INTO Users (id, displayName, created) VALUES ($1, $2, $3)", user.Id, user.DisplayName, user.Created)
 	if err != nil {
-		//log.Fatalln(err)
 		return err
 	}
 
@@ -55,7 +54,6 @@ func (u *UserStore) CreateUser(ctx context.Context, user domain.User) error {
 func (u *UserStore) RemoveUser(ctx context.Context, id uuid.UUID) error {
 	_, err := u.db.ExecContext(ctx, "DELETE FROM UserConnections WHERE userId=$1;DELETE FROM Users WHERE id=$1;", id)
 	if err != nil {
-		//log.Fatalln(err)
 		return err
 	}
 
@@ -64,13 +62,11 @@ func (u *UserStore) RemoveUser(ctx context.Context, id uuid.UUID) error {
 
 func (u *UserStore) SaveUserConnection(ctx context.Context, userConnection domain.UserConnection) error {
 	if userConnection.UserId == uuid.Nil {
-		//log.Fatalln(err)
 		panic("invalid userId on user connection")
 	}
 
 	_, err := u.db.ExecContext(ctx, "INSERT INTO UserConnections (userId, signInType, accountId, authDetails) VALUES ($1, $2, $3, $4)", userConnection.UserId, userConnection.SignInType, userConnection.AccountId, userConnection.AuthDetails)
 	if err != nil {
-		//log.Fatalln(err)
 		return err
 	}
 

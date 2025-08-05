@@ -27,7 +27,7 @@ func (f *FeedStore) GetPosts(ctx context.Context, fellowshipIDs []uuid.UUID, cir
 		conditions       []string
 	)
 
-	query := "SELECT id, authorId, fellowshipId, circleId, dateTime, heading, article FROM Posts WHERE (fellowshipId IN ("
+	query := "SELECT id, authorId, fellowshipId, circleId, posted, heading, article FROM Posts WHERE (fellowshipId IN ("
 
 	for _, fellowshipID := range fellowshipIDs {
 		args = append(args, fellowshipID)
@@ -44,12 +44,12 @@ func (f *FeedStore) GetPosts(ctx context.Context, fellowshipIDs []uuid.UUID, cir
 	query += strings.Join(circleParams, ", ") + "))"
 
 	if before != nil {
-		conditions = append(conditions, fmt.Sprintf("dateTime < $%d", len(args)+1))
+		conditions = append(conditions, fmt.Sprintf("posted < $%d", len(args)+1))
 		args = append(args, *before)
 	}
 
 	if after != nil {
-		conditions = append(conditions, fmt.Sprintf("dateTime > $%d", len(args)+1))
+		conditions = append(conditions, fmt.Sprintf("posted > $%d", len(args)+1))
 		args = append(args, *after)
 	}
 
@@ -62,7 +62,7 @@ func (f *FeedStore) GetPosts(ctx context.Context, fellowshipIDs []uuid.UUID, cir
 		actualLimit = max(min(*limit, 1000), 1) // enforce a maximum limit and a minimum of 1
 	}
 
-	query += fmt.Sprintf(" ORDER BY dateTime DESC LIMIT %d", actualLimit)
+	query += fmt.Sprintf(" ORDER BY posted DESC LIMIT %d", actualLimit)
 
 	rows, err := f.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -74,7 +74,7 @@ func (f *FeedStore) GetPosts(ctx context.Context, fellowshipIDs []uuid.UUID, cir
 
 	for rows.Next() {
 		post := domain.Post{}
-		err := rows.Scan(&post.Id, &post.AuthorId, &post.FellowshipId, &post.CircleId, &post.DateTime, &post.Heading, &post.Article)
+		err := rows.Scan(&post.Id, &post.AuthorId, &post.FellowshipId, &post.CircleId, &post.Posted, &post.Heading, &post.Article)
 		if err != nil {
 			return nil, err
 		}
@@ -94,8 +94,8 @@ func (f *FeedStore) CreatePost(ctx context.Context, post domain.Post) error {
 		panic("invalid post id")
 	}
 
-	_, err := f.db.ExecContext(ctx, "INSERT INTO Posts (id, authorId, fellowshipId, circleId, dateTime, heading, article) VALUES ($1, $2)",
-		post.Id, post.AuthorId, post.FellowshipId, post.CircleId, post.DateTime, post.Heading, post.Article)
+	_, err := f.db.ExecContext(ctx, "INSERT INTO Posts (id, authorId, fellowshipId, circleId, posted, heading, article) VALUES ($1, $2)",
+		post.Id, post.AuthorId, post.FellowshipId, post.CircleId, post.Posted, post.Heading, post.Article)
 
 	return err
 }

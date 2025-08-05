@@ -162,7 +162,7 @@ func (u *UserService) createNewUser(ctx context.Context, email, authDetails, dis
 		return uuid.Nil, errors.New("could not generate an id")
 	}
 
-	err = u.userStore.CreateUser(ctx, domain.User{Id: userId, DisplayName: displayName})
+	err = u.userStore.CreateUser(ctx, domain.User{Id: userId, DisplayName: displayName, Created: time.Now()})
 	if err != nil {
 		return uuid.Nil, errors.New("could not save user")
 	}

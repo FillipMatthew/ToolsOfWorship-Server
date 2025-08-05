@@ -12,7 +12,7 @@ type Post struct {
 	AuthorId     uuid.UUID
 	FellowshipId uuid.UUID
 	CircleId     uuid.UUID
-	DateTime     time.Time
+	Posted       time.Time
 	Heading      string
 	Article      string
 }

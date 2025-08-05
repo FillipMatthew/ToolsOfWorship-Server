@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -20,6 +21,7 @@ type Token string
 type User struct {
 	Id          uuid.UUID
 	DisplayName string
+	Created     time.Time
 }
 
 type UserConnection struct {
