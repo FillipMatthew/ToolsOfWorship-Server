@@ -6,17 +6,25 @@ import (
 	"github.com/google/uuid"
 )
 
+type CircleType int32
+
+const (
+	Notices CircleType = iota
+	Prayer
+)
+
 type Circle struct {
 	Id           uuid.UUID
 	Creator      uuid.UUID
-	FellowshipID uuid.UUID
+	FellowshipId uuid.UUID
 	Name         string
+	Type         CircleType
 }
 
 type CircleStoreReader interface {
-	GetUserCircles(ctx context.Context, userID uuid.UUID) ([]Circle, error)
-	GetUserCircleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
-	CanUserPostToCircle(ctx context.Context, userID uuid.UUID, circleID uuid.UUID) (bool, error)
+	GetUserCircles(ctx context.Context, userId uuid.UUID) ([]Circle, error)
+	GetUserCircleIDs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error)
+	CanUserPostToCircle(ctx context.Context, userId uuid.UUID, circleId uuid.UUID) (bool, error)
 }
 
 type CircleStoreWriter interface {

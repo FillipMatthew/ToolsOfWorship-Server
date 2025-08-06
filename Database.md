@@ -22,7 +22,7 @@
   - accountId
   - authDetails
 
-## Fellowship
+## Fellowships
   - id
   - name
   - creator

@@ -13,9 +13,9 @@ type Fellowship struct {
 }
 
 type FellowshipStoreReader interface {
-	GetUserFellowships(ctx context.Context, userID uuid.UUID) ([]Fellowship, error)
-	GetUserFellowshipIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
-	CanUserPostToFellowship(ctx context.Context, userID uuid.UUID, fellowshipID uuid.UUID) (bool, error)
+	GetUserFellowships(ctx context.Context, userId uuid.UUID) ([]Fellowship, error)
+	GetUserFellowshipIDs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error)
+	CanUserPostToFellowship(ctx context.Context, userId uuid.UUID, fellowshipId uuid.UUID) (bool, error)
 }
 
 type FellowshipStoreWriter interface {

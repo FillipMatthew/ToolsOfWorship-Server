@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/feed"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/users"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/db/postgresql"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/service"
@@ -59,8 +60,9 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
 	mailService := service.NewMailService(config, config)
 	userService := service.NewUserService(postgresql.NewUserStore(db), *tokensService, *mailService)
+	feedService := service.NewFeedService(postgresql.NewFeedStore(db), postgresql.NewFellowshipStore(db), postgresql.NewCircleStore(db))
 
-	rt := api.ComposeRouters(users.NewRouter(userService))
+	rt := api.ComposeRouters(users.NewRouter(userService), feed.NewRouter(feedService))
 
 	logger.Println("initialising server")
 	server := api.NewServer(logger, config, healthCheck(db), rt)
