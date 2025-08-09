@@ -115,7 +115,7 @@ func PrepareDB(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	_, err = db.ExecContext(ctx, "CREATE INDEX idx_posts_posted ON Posts(posted)")
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_posts_posted ON Posts(posted)")
 	if err != nil {
 		return err
 	}
