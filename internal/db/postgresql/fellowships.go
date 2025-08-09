@@ -44,7 +44,7 @@ func (f *FellowshipStore) GetUserFellowships(ctx context.Context, userId uuid.UU
 }
 
 func (f *FellowshipStore) GetUserFellowshipIDs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := f.db.QueryContext(ctx, "SELECT fellowshipId FROM FellowshipUsers WHERE userId=$1", userId)
+	rows, err := f.db.QueryContext(ctx, "SELECT fellowshipId FROM FellowshipMembers WHERE userId=$1", userId)
 	if err != nil {
 		return nil, err
 	}

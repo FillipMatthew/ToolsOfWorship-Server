@@ -27,6 +27,10 @@ func (f *FeedStore) GetPosts(ctx context.Context, fellowshipIDs []uuid.UUID, cir
 		conditions       []string
 	)
 
+	if len(fellowshipIDs) == 0 && len(circleIDs) == 0 {
+		return nil, fmt.Errorf("at least one fellowshipID or circleID must be provided")
+	}
+
 	query := "SELECT id, authorId, fellowshipId, circleId, posted, heading, article FROM Posts WHERE (fellowshipId IN ("
 
 	for _, fellowshipID := range fellowshipIDs {

@@ -30,6 +30,10 @@ func (f *FeedService) List(ctx context.Context, user domain.User, limit *int, be
 		return nil, fmt.Errorf("failed get user circles: %v", err)
 	}
 
+	if len(fellowshipIDs) == 0 && len(circleIDs) == 0 {
+		return []domain.Post{}, nil
+	}
+
 	return f.feedStore.GetPosts(ctx, fellowshipIDs, circleIDs, limit, before, after)
 }
 

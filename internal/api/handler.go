@@ -48,7 +48,7 @@ func RespondError(w http.ResponseWriter, apiErr *Error) {
 	_ = json.NewEncoder(w).Encode(apiErr)
 }
 
-func RespondJSON(w http.ResponseWriter, v interface{}, status int) {
+func RespondJSON(w http.ResponseWriter, v any, status int) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)

@@ -8,13 +8,13 @@ import (
 )
 
 type Post struct {
-	Id           uuid.UUID
-	AuthorId     uuid.UUID
-	FellowshipId uuid.UUID
-	CircleId     uuid.UUID
-	Posted       time.Time
-	Heading      string
-	Article      string
+	Id           uuid.UUID `json:"id"`
+	AuthorId     uuid.UUID `json:"authorId"`
+	FellowshipId uuid.UUID `json:"fellowshipId"`
+	CircleId     uuid.UUID `json:"circleId"`
+	Posted       time.Time `json:"posted"`
+	Heading      string    `json:"heading"`
+	Article      string    `json:"article"`
 }
 
 type FeedStoreReader interface {

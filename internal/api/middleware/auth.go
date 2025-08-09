@@ -24,7 +24,7 @@ func AuthMiddleware(u userAccountVerificationService) api.MiddlewareFunc {
 
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				return &api.Error{Code: http.StatusUnauthorized, Message: "Invalid authorization format", Err: api.ErrorUnauthorized}
+				return h.ServeHTTP(w, r)
 			}
 
 			token := parts[1]
