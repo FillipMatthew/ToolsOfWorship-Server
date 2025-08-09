@@ -15,17 +15,19 @@ type Server struct {
 	Logger        *log.Logger
 	config        config.ServerConfig
 	healthChecker HealthChecker
+	middleware    []MiddlewareFunc
 	router        Router
 	httpServer    *http.Server
 	once          sync.Once
 	cancel        func()
 }
 
-func NewServer(logger *log.Logger, config config.ServerConfig, healthChecker HealthChecker, rt Router) *Server {
+func NewServer(logger *log.Logger, config config.ServerConfig, healthChecker HealthChecker, mw []MiddlewareFunc, rt Router) *Server {
 	server := &Server{
 		Logger:        logger,
 		config:        config,
 		healthChecker: healthChecker,
+		middleware:    mw,
 		router:        rt,
 	}
 
@@ -127,9 +129,11 @@ func (s *Server) setupHandlers(config config.ServerConfig, mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.health)
 	mux.Handle("/", http.FileServer(http.Dir(config.GetPublicDir())))
 
+	allMiddlewares := append(s.middleware, WithLog(s.Logger))
+	allMiddlewares = append(allMiddlewares, WithHTTPErrStatus)
+
 	middlewareFunc := ChainMiddleware(
-		WithLog(s.Logger),
-		WithHTTPErrStatus,
+		allMiddlewares...,
 	)
 
 	for _, rt := range s.router.Routes() {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/feed"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/middleware"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/users"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/db/postgresql"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/service"
@@ -64,8 +65,10 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 
 	rt := api.ComposeRouters(users.NewRouter(userService), feed.NewRouter(feedService))
 
+	middlewares := []api.MiddlewareFunc{middleware.AuthMiddleware(userService)}
+
 	logger.Println("initialising server")
-	server := api.NewServer(logger, config, healthCheck(db), rt)
+	server := api.NewServer(logger, config, healthCheck(db), middlewares, rt)
 	return server.Start(ctx)
 }
 
