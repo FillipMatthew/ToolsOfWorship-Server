@@ -28,7 +28,7 @@ func (f *FellowshipStore) GetUserFellowships(ctx context.Context, userId uuid.UU
 
 	for rows.Next() {
 		fellowship := domain.Fellowship{}
-		err := rows.Scan(&fellowship.Id, &fellowship.Name, &fellowship.Creator)
+		err := rows.Scan(&fellowship.Id, &fellowship.Name, &fellowship.CreatorId)
 		if err != nil {
 			return nil, err
 		}
@@ -69,8 +69,15 @@ func (f *FellowshipStore) GetUserFellowshipIDs(ctx context.Context, userId uuid.
 	return fellowshipIds, nil
 }
 
-func (f *FellowshipStore) CanUserPostToFellowship(ctx context.Context, userID uuid.UUID, fellowshipID uuid.UUID) (bool, error) {
-	return false, errors.New("not implemented")
+func (f *FellowshipStore) GetUserAccessLevel(ctx context.Context, userId uuid.UUID, fellowshipId uuid.UUID) (domain.AccessLevel, error) {
+	accessLevel := domain.NoAccess
+
+	err := f.db.QueryRowContext(ctx, "SELECT access FROM FellowshipMembers WHERE userId=$1 AND fellowshipId=$2", userId, fellowshipId).Scan(&accessLevel)
+	if err != nil {
+		return domain.NoAccess, err
+	}
+
+	return accessLevel, nil
 }
 
 func (f *FellowshipStore) CreateFellowship(ctx context.Context, fellowship domain.Fellowship) error {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/feed"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/fellowships"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/middleware"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/users"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/db/postgresql"
@@ -61,9 +62,10 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
 	mailService := service.NewMailService(config, config)
 	userService := service.NewUserService(postgresql.NewUserStore(db), *tokensService, *mailService)
+	fellowshipService := service.NewFellowshipService(postgresql.NewFellowshipStore(db))
 	feedService := service.NewFeedService(postgresql.NewFeedStore(db), postgresql.NewFellowshipStore(db), postgresql.NewCircleStore(db))
 
-	rt := api.ComposeRouters(users.NewRouter(userService), feed.NewRouter(feedService))
+	rt := api.ComposeRouters(users.NewRouter(userService), fellowships.NewRouter(fellowshipService), feed.NewRouter(feedService))
 
 	middlewares := []api.MiddlewareFunc{middleware.AuthMiddleware(userService)}
 

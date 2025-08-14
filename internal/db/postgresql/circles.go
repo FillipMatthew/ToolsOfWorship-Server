@@ -69,8 +69,8 @@ func (c *CircleStore) GetUserCircleIDs(ctx context.Context, userId uuid.UUID) ([
 	return circleIds, nil
 }
 
-func (c *CircleStore) CanUserPostToCircle(ctx context.Context, userId uuid.UUID, circleId uuid.UUID) (bool, error) {
-	return false, errors.New("not implemented")
+func (c *CircleStore) GetUserAccessLevel(ctx context.Context, userId uuid.UUID, circleId uuid.UUID) (domain.AccessLevel, error) {
+	return domain.NoAccess, errors.New("not implemented")
 }
 
 func (c *CircleStore) CreateCircle(ctx context.Context, circle domain.Circle) error {

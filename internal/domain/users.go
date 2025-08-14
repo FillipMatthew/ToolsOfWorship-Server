@@ -16,6 +16,17 @@ const (
 	GoogleSignIn
 )
 
+type AccessLevel int32
+
+const (
+	Owner AccessLevel = iota
+	Admin
+	Moderator
+	ReadAndWrite
+	ReadOnly
+	NoAccess
+)
+
 type Token string
 
 type User struct {

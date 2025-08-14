@@ -45,17 +45,17 @@ func (f *FeedService) Post(ctx context.Context, user domain.User, fellowshipId u
 	}
 
 	if fellowshipId != uuid.Nil {
-		if canPost, err := f.fellowshipStore.CanUserPostToFellowship(ctx, user.Id, fellowshipId); err != nil {
+		if accessLevel, err := f.fellowshipStore.GetUserAccessLevel(ctx, user.Id, fellowshipId); err != nil {
 			return fmt.Errorf("unable to check user permissions for fellowship %s: %v", fellowshipId, err)
-		} else if !canPost {
+		} else if !canPost(accessLevel) {
 			return fmt.Errorf("user %s cannot post to fellowship %s", user.Id, fellowshipId)
 		}
 	}
 
 	if circleId != uuid.Nil {
-		if canPost, err := f.circleStore.CanUserPostToCircle(ctx, user.Id, circleId); err != nil {
+		if accessLevel, err := f.circleStore.GetUserAccessLevel(ctx, user.Id, circleId); err != nil {
 			return fmt.Errorf("unable to check user permissions for circle %s: %v", circleId, err)
-		} else if !canPost {
+		} else if !canPost(accessLevel) {
 			return fmt.Errorf("user %s cannot post to circle %s", user.Id, circleId)
 		}
 	}
@@ -66,4 +66,12 @@ func (f *FeedService) Post(ctx context.Context, user domain.User, fellowshipId u
 	}
 
 	return f.feedStore.CreatePost(ctx, domain.Post{Id: uuid, AuthorId: user.Id, FellowshipId: fellowshipId, CircleId: circleId, Posted: time.Now(), Heading: heading, Article: article})
+}
+
+func canPost(accessLevel domain.AccessLevel) bool {
+	if accessLevel == domain.Owner || accessLevel == domain.Admin || accessLevel == domain.Moderator || accessLevel == domain.ReadAndWrite {
+		return true
+	}
+
+	return false
 }

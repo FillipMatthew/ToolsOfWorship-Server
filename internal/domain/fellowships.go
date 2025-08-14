@@ -7,15 +7,15 @@ import (
 )
 
 type Fellowship struct {
-	Id      uuid.UUID
-	Creator uuid.UUID
-	Name    string
+	Id        uuid.UUID `json:"id"`
+	CreatorId uuid.UUID `json:"creatorId"`
+	Name      string    `json:"name"`
 }
 
 type FellowshipStoreReader interface {
 	GetUserFellowships(ctx context.Context, userId uuid.UUID) ([]Fellowship, error)
 	GetUserFellowshipIDs(ctx context.Context, userId uuid.UUID) ([]uuid.UUID, error)
-	CanUserPostToFellowship(ctx context.Context, userId uuid.UUID, fellowshipId uuid.UUID) (bool, error)
+	GetUserAccessLevel(ctx context.Context, userId uuid.UUID, fellowshipId uuid.UUID) (AccessLevel, error)
 }
 
 type FellowshipStoreWriter interface {
