@@ -10,11 +10,7 @@ import (
 )
 
 type serverConfig struct {
-	IsTLS         bool   `json:"tls"`
 	ListenAddress string `json:"address"`
-	CertPath      string `json:"cert"`
-	KeyPath       string `json:"key"`
-	PublicDir     string `json:"public"`
 	Domain        string `json:"domain"`
 }
 
@@ -38,24 +34,8 @@ type config struct {
 	Mail     mailConfig     `json:"mail"`
 }
 
-func (config *config) IsTLS() bool {
-	return config.Server.IsTLS
-}
-
 func (config *config) GetListenAddress() string {
 	return config.Server.ListenAddress
-}
-
-func (config *config) GetCertPath() string {
-	return config.Server.CertPath
-}
-
-func (config *config) GetKeyPath() string {
-	return config.Server.KeyPath
-}
-
-func (config *config) GetPublicDir() string {
-	return config.Server.PublicDir
 }
 
 func (config *config) GetDomain() string {
@@ -104,11 +84,7 @@ func getConfig() *config {
 	}
 
 	// Overwrite all with any manually specified options
-	flag.BoolVar(&config.Server.IsTLS, "tls", config.Server.IsTLS, "Use TLS?")
 	flag.StringVar(&config.Server.ListenAddress, "address", config.Server.ListenAddress, "[Address:Port] to listen on")
-	flag.StringVar(&config.Server.CertPath, "cert", config.Server.CertPath, "TLS certificate path")
-	flag.StringVar(&config.Server.KeyPath, "key", config.Server.KeyPath, "TLS private key path")
-	flag.StringVar(&config.Server.PublicDir, "public", config.Server.PublicDir, "Public directory path")
 	flag.StringVar(&config.Server.Domain, "domain", config.Server.Domain, "The base domain for the server endpoints (example.com)")
 	flag.BoolVar(&config.Database.UseSSL, "dbssl", config.Database.UseSSL, "Use SSL for database?")
 	flag.StringVar(&config.Database.Host, "dbhost", config.Database.Host, "Database host")
@@ -139,27 +115,10 @@ func getConfig() *config {
 }
 
 func getEnvConfig() *config {
-	isTLS, err := strconv.ParseBool(os.Getenv("USE_TLS"))
-	if err != nil {
-		isTLS = true // Default value
-	}
-
 	listenAddress := os.Getenv("LISTEN_ADDRESS")
 	if listenAddress == "" {
-		listenAddress = ":443"
+		listenAddress = ":8080"
 	}
-
-	certPath := os.Getenv("CERT_PATH")
-	if certPath == "" {
-		certPath = "./certs/cert.pem"
-	}
-
-	keyPath := os.Getenv("CERT_PATH")
-	if keyPath == "" {
-		keyPath = "./certs/key.pem"
-	}
-
-	publicDir := os.Getenv("PUBLIC_DIR")
 
 	domain := os.Getenv("DOMAIN")
 
@@ -212,11 +171,7 @@ func getEnvConfig() *config {
 
 	return &config{
 		Server: serverConfig{
-			IsTLS:         isTLS,
 			ListenAddress: listenAddress,
-			CertPath:      certPath,
-			KeyPath:       keyPath,
-			PublicDir:     publicDir,
 			Domain:        domain,
 		},
 		Database: databaseConfig{
