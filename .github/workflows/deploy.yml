@@ -52,7 +52,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             chmod -R 755 ${{ secrets.TARGET_DIR }}
-            sudo chmod +x ${{ secrets.TARGET_DIR }}/tow-server
+            chmod +x ${{ secrets.TARGET_DIR }}/tow-server
 
       - name: Restart Service
         uses: appleboy/ssh-action@master
