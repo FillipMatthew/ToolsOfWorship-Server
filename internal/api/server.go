@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/middleware"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 )
 
@@ -90,8 +89,8 @@ func (s *Server) setupHandlers(config config.ServerConfig, mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.health)
 
 	allMiddlewares := []MiddlewareFunc{
-		middleware.SecurityHeadersMiddleware,
-		middleware.CORSMiddleware,
+		SecurityHeadersMiddleware,
+		CORSMiddleware,
 		WithLog(s.Logger),
 		WithHTTPErrStatus,
 	}

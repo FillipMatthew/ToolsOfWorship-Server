@@ -6,8 +6,7 @@ import (
 	"fmt"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
-
-	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/lib/pq"
 )
 
 func NewDB(ctx context.Context, config config.DatabaseConfig) (*sql.DB, error) {

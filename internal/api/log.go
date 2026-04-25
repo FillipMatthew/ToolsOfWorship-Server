@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// WithLog middleware logs request details
 func WithLog(logger *log.Logger) MiddlewareFunc {
 	return func(method, pattern string, h Handler) Handler {
 		return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
@@ -32,6 +33,7 @@ func WithLog(logger *log.Logger) MiddlewareFunc {
 	}
 }
 
+// WithHTTPErrStatus middleware handles HTTP error responses and limits request body size
 func WithHTTPErrStatus(method, pattern string, h Handler) Handler {
 	return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
 		// Limit request body size to 1MB by default

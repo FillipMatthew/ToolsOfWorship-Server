@@ -15,13 +15,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func NewUserService(store domain.UserStore, tokensService TokensService, mailService MailService) *UserService {
+func NewUserService(store domain.UserStore, tokensService *TokensService, mailService MailService) *UserService {
 	return &UserService{userStore: store, tokensService: tokensService, mailService: mailService}
 }
 
 type UserService struct {
 	userStore     domain.UserStore
-	tokensService TokensService
+	tokensService *TokensService
 	mailService   MailService
 }
 

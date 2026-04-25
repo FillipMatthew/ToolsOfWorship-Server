@@ -61,7 +61,7 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 	logger.Println("setting up services")
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
 	mailService := service.NewMailService(config, config)
-	userService := service.NewUserService(postgresql.NewUserStore(db), *tokensService, *mailService)
+	userService := service.NewUserService(postgresql.NewUserStore(db), tokensService, *mailService)
 	fellowshipService := service.NewFellowshipService(postgresql.NewFellowshipStore(db))
 	feedService := service.NewFeedService(postgresql.NewFeedStore(db), postgresql.NewFellowshipStore(db), postgresql.NewCircleStore(db))
 
