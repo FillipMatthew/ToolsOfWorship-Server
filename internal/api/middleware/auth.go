@@ -19,12 +19,12 @@ func AuthMiddleware(u userAccountVerificationService) api.MiddlewareFunc {
 		return api.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				return h.ServeHTTP(w, r)
+				return &api.Error{Code: http.StatusUnauthorized, Message: "Authorization header missing", Err: api.ErrorUnauthorized}
 			}
 
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				return h.ServeHTTP(w, r)
+				return &api.Error{Code: http.StatusUnauthorized, Message: "Invalid authorization header format", Err: api.ErrorUnauthorized}
 			}
 
 			token := parts[1]

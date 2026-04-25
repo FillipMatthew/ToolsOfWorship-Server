@@ -34,6 +34,9 @@ func WithLog(logger *log.Logger) MiddlewareFunc {
 
 func WithHTTPErrStatus(method, pattern string, h Handler) Handler {
 	return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		// Limit request body size to 1MB by default
+		r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
 		err := h.ServeHTTP(w, r)
 		if err == nil {
 			return nil
@@ -42,7 +45,12 @@ func WithHTTPErrStatus(method, pattern string, h Handler) Handler {
 		var apiErr *Error
 
 		if !errors.As(err, &apiErr) {
-			apiErr = &Error{Code: http.StatusInternalServerError, Message: "something went wrong", Err: err}
+			apiErr = &Error{Code: http.StatusInternalServerError, Message: "Something went wrong"}
+		} else {
+			// Don't leak the underlying error if it's internal
+			if apiErr.Code == http.StatusInternalServerError {
+				apiErr.Message = "Something went wrong"
+			}
 		}
 
 		RespondError(w, apiErr)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
@@ -29,6 +30,7 @@ func NewTokensService(ctx context.Context, config config.ServerConfig, keyStore 
 type TokensService struct {
 	config                config.ServerConfig
 	keyStore              domain.KeyStore
+	mu                    sync.RWMutex
 	currentSigningKey     domain.Key
 	signingKeys           map[uuid.UUID]domain.Key
 	currentEncryptionKey  domain.Key
@@ -41,18 +43,22 @@ func (ts *TokensService) initialise(ctx context.Context) error {
 		return fmt.Errorf("could not get signing keys: %v", err)
 	}
 
+	ts.mu.Lock()
 	ts.signingKeys = signingKeys
 	for _, key := range ts.signingKeys {
 		if ts.currentSigningKey.Expiry.IsZero() || (!key.Expiry.IsZero() && ts.currentSigningKey.Expiry.Unix() < key.Expiry.Unix()) {
 			ts.currentSigningKey = key
 		}
 	}
+	ts.mu.Unlock()
 
 	encryptionKeys, err := ts.keyStore.GetEncryptionKeys(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get encryption keys: %v", err)
 	}
 
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	for _, key := range encryptionKeys {
 		if ts.currentEncryptionKey.Expiry.IsZero() || (!key.Expiry.IsZero() && ts.currentSigningKey.Expiry.Unix() < key.Expiry.Unix()) {
 			ts.previousEncryptionKey = ts.currentEncryptionKey
@@ -359,9 +365,12 @@ func (ts *TokensService) VerifyEncryptedTokenWithKey(ctx context.Context, token 
 }
 
 func (ts *TokensService) getCurrentSigningKey(ctx context.Context) (domain.Key, error) {
+	ts.mu.RLock()
 	if ts.currentSigningKey.IsValid() {
+		defer ts.mu.RUnlock()
 		return ts.currentSigningKey, nil
 	}
+	ts.mu.RUnlock()
 
 	newKey, err := domain.NewKey()
 	if err != nil {
@@ -372,6 +381,8 @@ func (ts *TokensService) getCurrentSigningKey(ctx context.Context) (domain.Key, 
 		return domain.Key{}, errors.New("invalid key generated")
 	}
 
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	ts.currentSigningKey = newKey
 	if ts.signingKeys == nil {
 		ts.signingKeys = map[uuid.UUID]domain.Key{}
@@ -388,6 +399,8 @@ func (ts *TokensService) getCurrentSigningKey(ctx context.Context) (domain.Key, 
 }
 
 func (ts *TokensService) getSigningKey(id uuid.UUID) (domain.Key, error) {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
 	if key, exists := ts.signingKeys[id]; exists {
 		return key, nil
 	}
@@ -396,9 +409,12 @@ func (ts *TokensService) getSigningKey(id uuid.UUID) (domain.Key, error) {
 }
 
 func (ts *TokensService) getCurrentEncryptionKey(ctx context.Context) (domain.Key, error) {
+	ts.mu.RLock()
 	if ts.currentEncryptionKey.IsValid() {
+		defer ts.mu.RUnlock()
 		return ts.currentEncryptionKey, nil
 	}
+	ts.mu.RUnlock()
 
 	newKey, err := domain.NewKey()
 	if err != nil {
@@ -409,6 +425,8 @@ func (ts *TokensService) getCurrentEncryptionKey(ctx context.Context) (domain.Ke
 		return domain.Key{}, errors.New("invalid key generated")
 	}
 
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	if ts.previousEncryptionKey.IsValid() {
 		ts.keyStore.RemoveEncryptionKey(ctx, ts.previousEncryptionKey.Id)
 	}
@@ -424,6 +442,8 @@ func (ts *TokensService) getCurrentEncryptionKey(ctx context.Context) (domain.Ke
 }
 
 func (ts *TokensService) getPreviousEncryptionKey() (domain.Key, error) {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
 	if ts.previousEncryptionKey.Id != uuid.Nil && len(ts.previousEncryptionKey.Key) != 0 {
 		return ts.previousEncryptionKey, nil
 	}

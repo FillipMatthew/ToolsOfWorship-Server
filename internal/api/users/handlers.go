@@ -58,11 +58,10 @@ func registerUserHandler(ur userRegisterationService) api.HandlerFunc {
 		err := ur.Register(r.Context(), domain.User{DisplayName: newUser.DisplayName},
 			newUser.AccountId, newUser.Password)
 		if err != nil {
-			return &api.Error{Code: http.StatusInternalServerError, Message: "user registeration failed", Err: err}
+			return &api.Error{Code: http.StatusInternalServerError, Message: "user registration failed", Err: err}
 		}
 
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "Pending email verification.")
+		api.RespondJSON(w, map[string]string{"message": "Pending email verification."}, http.StatusOK)
 		return nil
 	}
 }

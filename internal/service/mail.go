@@ -25,10 +25,10 @@ func (m *MailService) SendNoReplyEmail(recipientName, emailAddress, subject, con
 }
 
 func (m *MailService) sendMailMailGun(from, recipientName, emailAddress, subject, content string) error {
-	endpoint := "https://api.eu.mailgun.net/v3/toolsofworship.com/messages"
+	endpoint := m.config.GetMailEndpoint()
 
 	data := url.Values{}
-	data.Set("from", "Tools of Worship <"+from+"@"+m.serverConfig.GetDomain()+">")
+	data.Set("from", "Tools of Worship <"+from+"@"+m.config.GetMailDomain()+">")
 	data.Set("to", recipientName+"<"+emailAddress+">")
 	data.Set("subject", subject)
 	data.Set("html", content)

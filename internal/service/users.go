@@ -200,7 +200,7 @@ func (u *UserService) sendVerificationMail(ctx context.Context, email, authDetai
 		return fmt.Errorf("failed to sign token: %v", err)
 	}
 
-	templatePath := "./templates/VerificationEmailTemplate.html"
+	templatePath := u.tokensService.config.GetVerificationEmailTemplatePath()
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to read template file: %v", err)

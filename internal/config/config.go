@@ -3,6 +3,7 @@ package config
 type ServerConfig interface {
 	GetListenAddress() string
 	GetDomain() string
+	GetVerificationEmailTemplatePath() string
 }
 
 type DatabaseConfig interface {
@@ -17,4 +18,6 @@ type DatabaseConfig interface {
 
 type MailConfig interface {
 	GetMailKey() string
+	GetMailDomain() string
+	GetMailEndpoint() string
 }

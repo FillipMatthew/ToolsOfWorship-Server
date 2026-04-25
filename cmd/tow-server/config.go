@@ -10,8 +10,9 @@ import (
 )
 
 type serverConfig struct {
-	ListenAddress string `json:"address"`
-	Domain        string `json:"domain"`
+	ListenAddress                 string `json:"address"`
+	Domain                        string `json:"domain"`
+	VerificationEmailTemplatePath string `json:"verificationEmailTemplatePath"`
 }
 
 type databaseConfig struct {
@@ -25,7 +26,9 @@ type databaseConfig struct {
 }
 
 type mailConfig struct {
-	Key string `json:"key"`
+	Key      string `json:"key"`
+	Domain   string `json:"domain"`
+	Endpoint string `json:"endpoint"`
 }
 
 type config struct {
@@ -40,6 +43,10 @@ func (config *config) GetListenAddress() string {
 
 func (config *config) GetDomain() string {
 	return config.Server.Domain
+}
+
+func (config *config) GetVerificationEmailTemplatePath() string {
+	return config.Server.VerificationEmailTemplatePath
 }
 
 func (config *config) UseSSL() bool {
@@ -74,6 +81,33 @@ func (config *config) GetMailKey() string {
 	return config.Mail.Key
 }
 
+func (config *config) GetMailDomain() string {
+	return config.Mail.Domain
+}
+
+func (config *config) GetMailEndpoint() string {
+	return config.Mail.Endpoint
+}
+
+func (c *config) Validate() error {
+	if c.Server.Domain == "" {
+		return fmt.Errorf("server domain is required")
+	}
+	if len(c.Database.MasterKey) != 32 {
+		return fmt.Errorf("database master key must be 32 bytes")
+	}
+	if c.Mail.Key == "" {
+		return fmt.Errorf("mail key is required")
+	}
+	if c.Mail.Domain == "" {
+		return fmt.Errorf("mail domain is required")
+	}
+	if c.Mail.Endpoint == "" {
+		return fmt.Errorf("mail endpoint is required")
+	}
+	return nil
+}
+
 func getConfig() *config {
 	config := getEnvConfig()
 
@@ -86,6 +120,7 @@ func getConfig() *config {
 	// Overwrite all with any manually specified options
 	flag.StringVar(&config.Server.ListenAddress, "address", config.Server.ListenAddress, "[Address:Port] to listen on")
 	flag.StringVar(&config.Server.Domain, "domain", config.Server.Domain, "The base domain for the server endpoints (example.com)")
+	flag.StringVar(&config.Server.VerificationEmailTemplatePath, "verificationEmailTemplatePath", config.Server.VerificationEmailTemplatePath, "Path to the verification email template")
 	flag.BoolVar(&config.Database.UseSSL, "dbssl", config.Database.UseSSL, "Use SSL for database?")
 	flag.StringVar(&config.Database.Host, "dbhost", config.Database.Host, "Database host")
 	flag.UintVar(&config.Database.Port, "dbport", config.Database.Port, "Database port")
@@ -106,8 +141,15 @@ func getConfig() *config {
 		}
 	}
 	flag.StringVar(&config.Mail.Key, "mailkey", config.Mail.Key, "Mail API key")
+	flag.StringVar(&config.Mail.Domain, "maildomain", config.Mail.Domain, "Mail domain")
+	flag.StringVar(&config.Mail.Endpoint, "mailendpoint", config.Mail.Endpoint, "Mail API endpoint")
 
 	flag.Parse()
+
+	if err := config.Validate(); err != nil {
+		fmt.Printf("Config validation failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	fmt.Printf("Config: %+v\n", config)
 
@@ -121,6 +163,11 @@ func getEnvConfig() *config {
 	}
 
 	domain := os.Getenv("DOMAIN")
+
+	verificationEmailTemplatePath := os.Getenv("VERIFICATION_EMAIL_TEMPLATE_PATH")
+	if verificationEmailTemplatePath == "" {
+		verificationEmailTemplatePath = "./templates/VerificationEmailTemplate.html"
+	}
 
 	useSSL, err := strconv.ParseBool(os.Getenv("DB_USE_SSL"))
 	if err != nil {
@@ -157,22 +204,25 @@ func getEnvConfig() *config {
 	masterKeyStr := os.Getenv("MASTER_KEY")
 	var masterKey []byte
 	if len(masterKeyStr) != 0 {
-		masterKey, err := base64.RawURLEncoding.DecodeString(masterKeyStr)
+		masterKey, err = base64.RawURLEncoding.DecodeString(masterKeyStr)
 		if err != nil {
-			fmt.Println("Error loading master key command line args:", err)
+			fmt.Println("Error loading master key from env:", err)
 		}
 
 		if len(masterKey) != 32 {
-			fmt.Print("Error parsing master key. Key must be 32 bytes encoded in base64")
+			fmt.Print("Error parsing master key from env. Key must be 32 bytes encoded in base64")
 		}
 	}
 
 	mailkey := os.Getenv("MAIL_KEY")
+	maildomain := os.Getenv("MAIL_DOMAIN")
+	mailendpoint := os.Getenv("MAIL_ENDPOINT")
 
 	return &config{
 		Server: serverConfig{
-			ListenAddress: listenAddress,
-			Domain:        domain,
+			ListenAddress:                 listenAddress,
+			Domain:                        domain,
+			VerificationEmailTemplatePath: verificationEmailTemplatePath,
 		},
 		Database: databaseConfig{
 			UseSSL:    useSSL,
@@ -184,7 +234,9 @@ func getEnvConfig() *config {
 			MasterKey: masterKey,
 		},
 		Mail: mailConfig{
-			Key: mailkey,
+			Key:      mailkey,
+			Domain:   maildomain,
+			Endpoint: mailendpoint,
 		},
 	}
 }
