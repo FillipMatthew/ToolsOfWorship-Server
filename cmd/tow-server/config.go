@@ -20,13 +20,16 @@ type serverConfig struct {
 }
 
 type databaseConfig struct {
-	UseSSL    bool   `json:"ssl"`
-	Host      string `json:"host"`
-	Port      uint   `json:"port"`
-	User      string `json:"user"`
-	Password  string `json:"password"`
-	Name      string `json:"name"`
-	MasterKey []byte `json:"masterKey"`
+	UseSSL              bool   `json:"ssl"`
+	Host                string `json:"host"`
+	Port                uint   `json:"port"`
+	User                string `json:"user"`
+	Password            string `json:"password"`
+	Name                string `json:"name"`
+	MasterKey           []byte `json:"masterKey"`
+	MaxOpenConns        int    `json:"maxOpenConns"`
+	MaxIdleConns        int    `json:"maxIdleConns"`
+	ConnMaxLifetimeSecs int    `json:"connMaxLifetimeSecs"`
 }
 
 type mailConfig struct {
@@ -92,6 +95,15 @@ func (config *config) GetMasterKey() []byte {
 	return config.Database.MasterKey
 }
 
+func (config *config) GetMaxOpenConns() int { return config.Database.MaxOpenConns }
+func (config *config) GetMaxIdleConns() int { return config.Database.MaxIdleConns }
+func (config *config) GetConnMaxLifetime() time.Duration {
+	if config.Database.ConnMaxLifetimeSecs <= 0 {
+		return 0
+	}
+	return time.Duration(config.Database.ConnMaxLifetimeSecs) * time.Second
+}
+
 func (config *config) GetMailKey() string {
 	return config.Mail.Key
 }
@@ -148,6 +160,10 @@ func getConfig() *config {
 	flag.StringVar(&config.Database.Name, "dbname", config.Database.Name, "Database name")
 
 	masterKey := flag.String("masterKey", "", "The master key used for encrypting keys in the DB (base64-encoded 32 bytes)")
+
+	flag.IntVar(&config.Database.MaxOpenConns, "dbMaxOpenConns", config.Database.MaxOpenConns, "Max open DB connections (0 = unlimited)")
+	flag.IntVar(&config.Database.MaxIdleConns, "dbMaxIdleConns", config.Database.MaxIdleConns, "Max idle DB connections (0 = driver default)")
+	flag.IntVar(&config.Database.ConnMaxLifetimeSecs, "dbConnMaxLifetimeSecs", config.Database.ConnMaxLifetimeSecs, "Max DB connection lifetime in seconds (0 = unlimited)")
 
 	flag.StringVar(&config.Mail.Key, "mailkey", config.Mail.Key, "Mail API key")
 	flag.StringVar(&config.Mail.Domain, "maildomain", config.Mail.Domain, "Mail domain")
@@ -249,6 +265,21 @@ func getEnvConfig() *config {
 		}
 	}
 
+	dbMaxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
+	if err != nil {
+		dbMaxOpenConns = 0
+	}
+
+	dbMaxIdleConns, err := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
+	if err != nil {
+		dbMaxIdleConns = 0
+	}
+
+	dbConnMaxLifetimeSecs, err := strconv.Atoi(os.Getenv("DB_CONN_MAX_LIFETIME_SECS"))
+	if err != nil {
+		dbConnMaxLifetimeSecs = 0
+	}
+
 	mailkey := os.Getenv("MAIL_KEY")
 	maildomain := os.Getenv("MAIL_DOMAIN")
 	mailendpoint := os.Getenv("MAIL_ENDPOINT")
@@ -262,13 +293,16 @@ func getEnvConfig() *config {
 			RequestTimeoutSecs:            requestTimeoutSecs,
 		},
 		Database: databaseConfig{
-			UseSSL:    useSSL,
-			Host:      dbhost,
-			Port:      dbport,
-			User:      dbuser,
-			Password:  dbpassword,
-			Name:      dbname,
-			MasterKey: masterKey,
+			UseSSL:              useSSL,
+			Host:                dbhost,
+			Port:                dbport,
+			User:                dbuser,
+			Password:            dbpassword,
+			Name:                dbname,
+			MasterKey:           masterKey,
+			MaxOpenConns:        dbMaxOpenConns,
+			MaxIdleConns:        dbMaxIdleConns,
+			ConnMaxLifetimeSecs: dbConnMaxLifetimeSecs,
 		},
 		Mail: mailConfig{
 			Key:      mailkey,

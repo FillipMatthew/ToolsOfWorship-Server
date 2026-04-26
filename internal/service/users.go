@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -26,28 +25,27 @@ type UserService struct {
 }
 
 func (u *UserService) Login(ctx context.Context, accountId, password string) (*domain.Token, *domain.User, error) {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	if !emailRegex.MatchString(accountId) {
-		return nil, nil, errors.New("invalid email format")
+	if !domain.EmailRegex.MatchString(accountId) {
+		return nil, nil, domain.ErrInvalidEmail
 	}
 
 	accountId = strings.ToLower(accountId)
 
 	userConnection, err := u.userStore.GetUserConnection(ctx, domain.LocalUser, accountId)
 	if err != nil {
-		return nil, nil, errors.New("login failed, invalid credentials")
+		return nil, nil, domain.ErrInvalidCredentials
 	}
 
 	bytePassword := []byte(password)
 	byteHash := []byte(*userConnection.AuthDetails)
 	err = bcrypt.CompareHashAndPassword(byteHash, bytePassword)
 	if err != nil {
-		return nil, nil, errors.New("login failed, invalid credentials")
+		return nil, nil, domain.ErrInvalidCredentials
 	}
 
 	user, err := u.userStore.GetUser(ctx, userConnection.UserId)
 	if err != nil {
-		return nil, nil, errors.New("unable to fetch user")
+		return nil, nil, domain.ErrUserFetchFailed
 	}
 
 	token, err := u.generateUserAuthToken(ctx, *user)
@@ -62,29 +60,27 @@ func (u *UserService) SignIn(ctx context.Context, userConnection domain.UserConn
 	if userConnection.SignInType == domain.LocalUser && userConnection.AuthDetails != nil {
 		return u.Login(ctx, userConnection.AccountId, *userConnection.AuthDetails)
 	} else {
-		return nil, nil, errors.New("invalid signin")
+		return nil, nil, fmt.Errorf("unsupported sign-in type: %d", userConnection.SignInType)
 	}
 }
 
 func (u *UserService) Register(ctx context.Context, user domain.User, accountId, password string) error {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	if !emailRegex.MatchString(accountId) {
-		return errors.New("invalid email format")
+	if !domain.EmailRegex.MatchString(accountId) {
+		return domain.ErrInvalidEmail
 	}
 
 	accountId = strings.ToLower(accountId)
 
-	displayNameRegex := regexp.MustCompile(`^[a-zA-Z0-9 ]{3,30}$`)
-	if !displayNameRegex.MatchString(user.DisplayName) {
-		return errors.New("invalid display name")
+	if !domain.DisplayNameRegex.MatchString(user.DisplayName) {
+		return domain.ErrInvalidDisplayName
 	}
 
-	if len(password) < 8 {
-		return errors.New("password too short")
+	if len(password) < domain.PasswordMinLength {
+		return domain.ErrPasswordTooShort
 	}
 
 	if !u.validateNewUser(ctx, accountId) {
-		return errors.New("email already in use")
+		return domain.ErrEmailInUse
 	}
 
 	bytePassword := []byte(password)
@@ -104,12 +100,12 @@ func (u *UserService) Register(ctx context.Context, user domain.User, accountId,
 func (u *UserService) ValidateUser(ctx context.Context, token domain.Token) (*domain.User, error) {
 	userId, err := u.validateUserAuthToken(ctx, token)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate user auth token: %v", err)
+		return nil, fmt.Errorf("failed to validate user auth token: %w", err)
 	}
 
 	user, err := u.userStore.GetUser(ctx, userId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user: %v", err)
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
 
 	return user, nil
@@ -124,24 +120,24 @@ type newAccountDetails struct {
 func (u *UserService) VerifyAccount(ctx context.Context, token domain.Token) error {
 	data, err := u.tokensService.VerifyEncryptedToken(ctx, string(token), nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to verify token: %v", err)
+		return fmt.Errorf("failed to verify token: %w", err)
 	}
 
 	sub, ok := data["sub"].(string)
 	if !ok {
-		return errors.New("invalid token data[sub]")
+		return domain.ErrInvalidTokenData
 	}
 
 	verificationDetails := newAccountDetails{}
 
 	err = json.Unmarshal([]byte(sub), &verificationDetails)
 	if err != nil {
-		return errors.New("invalid token data")
+		return domain.ErrInvalidTokenData
 	}
 
 	_, err = u.createNewUser(ctx, verificationDetails.Email, verificationDetails.AuthDetails, verificationDetails.DisplayName)
 	if err != nil {
-		return fmt.Errorf("failed to create new user: %v", err)
+		return fmt.Errorf("failed to create new user: %w", err)
 	}
 
 	return nil
@@ -186,24 +182,24 @@ func (u *UserService) sendVerificationMail(ctx context.Context, email, authDetai
 
 	jsonData, err := json.Marshal(verificationDetails)
 	if err != nil {
-		return fmt.Errorf("failed to marshal email verification details: %v", err)
+		return fmt.Errorf("failed to marshal email verification details: %w", err)
 	}
 
 	payload := map[string]any{
 		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"exp": time.Now().Add(domain.TokenExpiryDuration).Unix(),
 		"sub": string(jsonData),
 	}
 
 	token, err := u.tokensService.SignEncryptedToken(ctx, payload)
 	if err != nil {
-		return fmt.Errorf("failed to sign token: %v", err)
+		return fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	templatePath := u.tokensService.config.GetVerificationEmailTemplatePath()
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		return fmt.Errorf("failed to read template file: %v", err)
+		return fmt.Errorf("failed to read template file: %w", err)
 	}
 
 	contentStr := strings.ReplaceAll(string(content), "@token", token)
@@ -225,18 +221,18 @@ func (u *UserService) generateUserAuthToken(ctx context.Context, user domain.Use
 
 	jsonData, err := json.Marshal(tokenDetails)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal user details: %v", err)
+		return nil, fmt.Errorf("failed to marshal user details: %w", err)
 	}
 
 	payload := map[string]any{
 		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"exp": time.Now().Add(domain.TokenExpiryDuration).Unix(),
 		"sub": string(jsonData),
 	}
 
 	token, err := u.tokensService.SignJWT(ctx, payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign token: %v", err)
+		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
 	result := domain.Token(token)
@@ -246,19 +242,19 @@ func (u *UserService) generateUserAuthToken(ctx context.Context, user domain.Use
 func (u *UserService) validateUserAuthToken(ctx context.Context, token domain.Token) (uuid.UUID, error) {
 	data, err := u.tokensService.VerifyJWT(string(token))
 	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("failed to verify token: %v", err)
+		return uuid.UUID{}, fmt.Errorf("failed to verify token: %w", err)
 	}
 
 	sub, ok := data["sub"].(string)
 	if !ok {
-		return uuid.UUID{}, errors.New("invalid token data[sub]")
+		return uuid.UUID{}, domain.ErrInvalidTokenData
 	}
 
 	tokenDetails := userAuthToken{}
 
 	err = json.Unmarshal([]byte(sub), &tokenDetails)
 	if err != nil {
-		return uuid.UUID{}, errors.New("invalid token data")
+		return uuid.UUID{}, domain.ErrInvalidTokenData
 	}
 
 	return tokenDetails.UserId, nil

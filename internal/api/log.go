@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
 )
 
 // WithLog middleware logs request details
@@ -36,8 +38,8 @@ func WithLog(logger *log.Logger) MiddlewareFunc {
 // WithHTTPErrStatus middleware handles HTTP error responses and limits request body size
 func WithHTTPErrStatus(method, pattern string, h Handler) Handler {
 	return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
-		// Limit request body size to 1MB by default
-		r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+		// Limit request body size to domain.RequestBodyMaxBytes by default
+		r.Body = http.MaxBytesReader(w, r.Body, domain.RequestBodyMaxBytes)
 
 		err := h.ServeHTTP(w, r)
 		if err == nil {

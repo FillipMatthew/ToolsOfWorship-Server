@@ -5,19 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
 )
 
-func NewMailService(config config.MailConfig, serverConfig config.ServerConfig) *MailService {
-	return &MailService{config: config, serverConfig: serverConfig}
+func NewMailService(config config.MailConfig, serverConfig config.ServerConfig, logger *log.Logger) *MailService {
+	return &MailService{config: config, serverConfig: serverConfig, logger: logger}
 }
 
 type MailService struct {
 	config       config.MailConfig
 	serverConfig config.ServerConfig
+	logger       *log.Logger
 }
 
 func (m *MailService) SendNoReplyEmail(recipientName, emailAddress, subject, content string) error {
@@ -35,8 +37,8 @@ func (m *MailService) sendMailMailGun(from, recipientName, emailAddress, subject
 
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBufferString(data.Encode()))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return fmt.Errorf("Error creating request: %v", err)
+		m.logger.Printf("mail: error creating request: %v", err)
+		return fmt.Errorf("error creating request: %w", err)
 	}
 
 	// Basic auth: username "api", password is your API key
@@ -45,20 +47,19 @@ func (m *MailService) sendMailMailGun(from, recipientName, emailAddress, subject
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println("Request failed:", err)
-		return fmt.Errorf("Request failed: %v", err)
+		m.logger.Printf("mail: request failed: %v", err)
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Println("Status:", resp.Status)
-	fmt.Println("Body:", string(body))
+	m.logger.Printf("mail: %s body: %s", resp.Status, string(body))
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Mailgun API returned status: %s", resp.Status)
+		return fmt.Errorf("mailgun API returned status: %s", resp.Status)
 	}
 
-	fmt.Println("Email sent successfully.")
+	m.logger.Println("mail: email sent successfully")
 
 	return nil
 }
@@ -89,14 +90,14 @@ func (m *MailService) sendMailSendGrid(from, recipientName, emailAddress, subjec
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		fmt.Println("Error marshalling JSON:", err)
-		return fmt.Errorf("Error marshalling JSON: %v", err)
+		m.logger.Printf("mail: error marshalling JSON: %v", err)
+		return fmt.Errorf("error marshalling JSON: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return fmt.Errorf("Error creating request: %v", err)
+		m.logger.Printf("mail: error creating request: %v", err)
+		return fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+m.config.GetMailKey())
@@ -104,14 +105,13 @@ func (m *MailService) sendMailSendGrid(from, recipientName, emailAddress, subjec
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println("Request failed:", err)
-		return fmt.Errorf("Request failed: %v", err)
+		m.logger.Printf("mail: request failed: %v", err)
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Println("Status:", resp.Status)
-	fmt.Println("Body:", string(body))
+	m.logger.Printf("mail: %s body: %s", resp.Status, string(body))
 
 	return nil
 }

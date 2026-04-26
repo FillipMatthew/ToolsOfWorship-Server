@@ -59,7 +59,7 @@ func NewKey() (Key, error) {
 	newKey := Key{
 		Id:     uuid.New(),
 		Key:    key,
-		Expiry: time.Now().Add(182 * 24 * time.Hour),
+		Expiry: time.Now().Add(KeyExpiryDuration),
 	}
 
 	return newKey, nil

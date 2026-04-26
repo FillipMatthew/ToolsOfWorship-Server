@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -37,9 +38,10 @@ func main() {
 }
 
 func appMain(ctx context.Context, logger *log.Logger, config *config) error {
+	startTime := time.Now()
 	logger.Print("initialising...")
 
-	db, err := postgresql.NewDB(ctx, config)
+	db, err := postgresql.NewDB(ctx, config, config)
 	if err != nil {
 		logger.Fatalf("Failed to init DB: %v", err)
 		return err
@@ -60,7 +62,7 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 
 	logger.Println("setting up services")
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
-	mailService := service.NewMailService(config, config)
+	mailService := service.NewMailService(config, config, logger)
 	userService := service.NewUserService(postgresql.NewUserStore(db), tokensService, *mailService)
 	fellowshipService := service.NewFellowshipService(postgresql.NewFellowshipStore(db))
 	feedService := service.NewFeedService(postgresql.NewFeedStore(db), postgresql.NewFellowshipStore(db), postgresql.NewCircleStore(db))
@@ -70,11 +72,11 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 	middlewares := []api.MiddlewareFunc{middleware.AuthMiddleware(userService)}
 
 	logger.Println("initialising server")
-	server := api.NewServer(logger, config, healthCheck(db), middlewares, rt)
+	server := api.NewServer(logger, config, healthCheck(db, startTime), middlewares, rt)
 	return server.Start(ctx)
 }
 
-func healthCheck(db *sql.DB) api.HealthCheckerFunc {
+func healthCheck(db *sql.DB, startTime time.Time) api.HealthCheckerFunc {
 	return func(ctx context.Context) ([]api.Health, error) {
 		if err := db.PingContext(ctx); err != nil {
 			return nil, fmt.Errorf("db ping: %w", err)
@@ -84,8 +86,19 @@ func healthCheck(db *sql.DB) api.HealthCheckerFunc {
 			return nil, fmt.Errorf("db read: %w", row.Err())
 		}
 
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+
+		systemDetails := map[string]any{
+			"uptimeSeconds": time.Since(startTime).Seconds(),
+			"goroutines":    runtime.NumGoroutine(),
+			"memAllocMB":    float64(mem.Alloc) / 1024 / 1024,
+			"memSysMB":      float64(mem.Sys) / 1024 / 1024,
+			"gcCycles":      mem.NumGC,
+		}
+
 		return []api.Health{
-			{Service: "ToW Server", Status: "OK", Time: time.Now().Local().String()},
+			{Service: "ToW Server", Status: "OK", Time: time.Now().Local().String(), Details: systemDetails},
 			{Service: "ToW DB", Status: "OK", Time: time.Now().Local().String(), Details: db.Stats()},
 		}, nil
 	}
