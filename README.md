@@ -49,6 +49,9 @@ The server can be configured using:
 ```env
 LISTEN_ADDRESS=:8080
 DOMAIN=ToolsOfWorship.com
+VERIFICATION_EMAIL_TEMPLATE_PATH=./templates/VerificationEmailTemplate.html
+CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com  # Comma-separated; empty = wildcard
+REQUEST_TIMEOUT_SECS=30
 
 DB_USE_SSL=true
 DB_HOST=localhost
@@ -56,8 +59,14 @@ DB_PORT=5432
 DB_USER=user
 DB_PASSWORD=password
 DB_NAME=ToW
-MASTER_KEY=base64_encoded_32_byte_key  # Master key for key encryption in the DB
+MASTER_KEY=base64_encoded_32_byte_key  # Required; base64url-encoded 32 bytes
+DB_MAX_OPEN_CONNS=0    # 0 = unlimited
+DB_MAX_IDLE_CONNS=0    # 0 = driver default
+DB_CONN_MAX_LIFETIME_SECS=0  # 0 = unlimited
+
 MAIL_KEY=your_mail_key
+MAIL_DOMAIN=your_mail_domain
+MAIL_ENDPOINT=https://api.mailgun.net
 ```
 
 ### Configuration File (config.json)
@@ -66,7 +75,10 @@ MAIL_KEY=your_mail_key
 {
   "server": {
     "address": ":8080",
-    "domain": "ToolsOfWorship.com"
+    "domain": "ToolsOfWorship.com",
+    "verificationEmailTemplatePath": "./templates/VerificationEmailTemplate.html",
+    "corsAllowedOrigins": ["https://example.com", "https://www.example.com"],
+    "requestTimeoutSecs": 30
   },
   "database": {
     "ssl": true,
@@ -75,10 +87,15 @@ MAIL_KEY=your_mail_key
     "user": "user",
     "password": "password",
     "name": "ToW",
-    "masterKey": "base64_encoded_32_byte_key"
+    "masterKey": "base64_encoded_32_byte_key",
+    "maxOpenConns": 0,
+    "maxIdleConns": 0,
+    "connMaxLifetimeSecs": 0
   },
   "mail": {
-    "key": "your_mail_key"
+    "key": "your_mail_key",
+    "domain": "your_mail_domain",
+    "endpoint": "https://api.mailgun.net"
   }
 }
 ```
