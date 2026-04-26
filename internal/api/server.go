@@ -22,15 +22,13 @@ type Server struct {
 }
 
 func NewServer(logger *log.Logger, config config.ServerConfig, healthChecker HealthChecker, mw []MiddlewareFunc, rt Router) *Server {
-	server := &Server{
+	return &Server{
 		Logger:        logger,
 		config:        config,
 		healthChecker: healthChecker,
 		middleware:    mw,
 		router:        rt,
 	}
-
-	return server
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -40,7 +38,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.Logger.Printf("address: '%s'\n", s.config.GetListenAddress())
 
 	mux := http.NewServeMux()
-	s.setupHandlers(s.config, mux)
+	s.setupHandlers(mux)
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.GetListenAddress(),
@@ -77,7 +75,6 @@ func (s *Server) Stop() error {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	hh, err := s.healthChecker.CheckHealth(r.Context())
 	if err != nil {
-		//w.Header().Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		RespondError(w, &Error{Code: http.StatusInternalServerError, Message: err.Error(), Err: err})
 		return
 	}
@@ -85,20 +82,19 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, HealthResponse{Health: hh}, http.StatusOK)
 }
 
-func (s *Server) setupHandlers(config config.ServerConfig, mux *http.ServeMux) {
+func (s *Server) setupHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.health)
 
 	allMiddlewares := []MiddlewareFunc{
+		WithTimeout(s.config.GetRequestTimeout()),
 		SecurityHeadersMiddleware,
-		CORSMiddleware,
+		CORSMiddleware(s.config.GetCORSAllowedOrigins()),
 		WithLog(s.Logger),
 		WithHTTPErrStatus,
 	}
 	allMiddlewares = append(allMiddlewares, s.middleware...)
 
-	middlewareFunc := ChainMiddleware(
-		allMiddlewares...,
-	)
+	middlewareFunc := ChainMiddleware(allMiddlewares...)
 
 	for _, rt := range s.router.Routes() {
 		handler := middlewareFunc(rt.Method, rt.Pattern, rt.Handler)

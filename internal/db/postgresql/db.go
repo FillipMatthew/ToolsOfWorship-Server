@@ -119,5 +119,35 @@ func PrepareDB(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_userconnections_accountid ON UserConnections(accountId)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_userconnections_userid ON UserConnections(userId)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_fellowshipmembers_userid ON FellowshipMembers(userId)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_circlemembers_userid ON CircleMembers(userId)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_posts_fellowshipid ON Posts(fellowshipId)")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_posts_circleid ON Posts(circleId)")
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

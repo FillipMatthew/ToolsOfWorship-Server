@@ -7,12 +7,16 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
 type serverConfig struct {
-	ListenAddress                 string `json:"address"`
-	Domain                        string `json:"domain"`
-	VerificationEmailTemplatePath string `json:"verificationEmailTemplatePath"`
+	ListenAddress                 string   `json:"address"`
+	Domain                        string   `json:"domain"`
+	VerificationEmailTemplatePath string   `json:"verificationEmailTemplatePath"`
+	CORSAllowedOrigins            []string `json:"corsAllowedOrigins"`
+	RequestTimeoutSecs            int      `json:"requestTimeoutSecs"`
 }
 
 type databaseConfig struct {
@@ -47,6 +51,17 @@ func (config *config) GetDomain() string {
 
 func (config *config) GetVerificationEmailTemplatePath() string {
 	return config.Server.VerificationEmailTemplatePath
+}
+
+func (config *config) GetCORSAllowedOrigins() []string {
+	return config.Server.CORSAllowedOrigins
+}
+
+func (config *config) GetRequestTimeout() time.Duration {
+	if config.Server.RequestTimeoutSecs <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(config.Server.RequestTimeoutSecs) * time.Second
 }
 
 func (config *config) UseSSL() bool {
@@ -121,30 +136,42 @@ func getConfig() *config {
 	flag.StringVar(&config.Server.ListenAddress, "address", config.Server.ListenAddress, "[Address:Port] to listen on")
 	flag.StringVar(&config.Server.Domain, "domain", config.Server.Domain, "The base domain for the server endpoints (example.com)")
 	flag.StringVar(&config.Server.VerificationEmailTemplatePath, "verificationEmailTemplatePath", config.Server.VerificationEmailTemplatePath, "Path to the verification email template")
+	flag.IntVar(&config.Server.RequestTimeoutSecs, "requestTimeoutSecs", config.Server.RequestTimeoutSecs, "HTTP request timeout in seconds (default 30)")
+
+	corsOrigins := flag.String("corsAllowedOrigins", "", "Comma-separated list of allowed CORS origins (empty = allow all)")
+
 	flag.BoolVar(&config.Database.UseSSL, "dbssl", config.Database.UseSSL, "Use SSL for database?")
 	flag.StringVar(&config.Database.Host, "dbhost", config.Database.Host, "Database host")
 	flag.UintVar(&config.Database.Port, "dbport", config.Database.Port, "Database port")
 	flag.StringVar(&config.Database.User, "dbuser", config.Database.User, "Database user")
 	flag.StringVar(&config.Database.Password, "dbpassword", config.Database.Password, "Database password")
 	flag.StringVar(&config.Database.Name, "dbname", config.Database.Name, "Database name")
-	masterKey := flag.String("masterKey", "", "The master used for encrypting keys in the DB.")
-	if len(*masterKey) != 0 {
-		keyBytes, err := base64.RawURLEncoding.DecodeString(*masterKey)
-		if err != nil {
-			fmt.Println("Error loading master key command line args:", err)
-		} else {
-			config.Database.MasterKey = keyBytes
-		}
 
-		if len(keyBytes) != 32 {
-			fmt.Print("Error parsing master key. Key must be 32 bytes encoded in base64")
-		}
-	}
+	masterKey := flag.String("masterKey", "", "The master key used for encrypting keys in the DB (base64-encoded 32 bytes)")
+
 	flag.StringVar(&config.Mail.Key, "mailkey", config.Mail.Key, "Mail API key")
 	flag.StringVar(&config.Mail.Domain, "maildomain", config.Mail.Domain, "Mail domain")
 	flag.StringVar(&config.Mail.Endpoint, "mailendpoint", config.Mail.Endpoint, "Mail API endpoint")
 
 	flag.Parse()
+
+	// Apply flag overrides that need post-processing
+	if len(*corsOrigins) != 0 {
+		config.Server.CORSAllowedOrigins = splitTrimmed(*corsOrigins, ",")
+	}
+
+	if len(*masterKey) != 0 {
+		keyBytes, err := base64.RawURLEncoding.DecodeString(*masterKey)
+		if err != nil {
+			fmt.Println("Error loading master key from command line args:", err)
+		} else {
+			if len(keyBytes) != 32 {
+				fmt.Println("Error parsing master key: key must be exactly 32 bytes encoded in base64")
+			} else {
+				config.Database.MasterKey = keyBytes
+			}
+		}
+	}
 
 	if err := config.Validate(); err != nil {
 		fmt.Printf("Config validation failed: %v\n", err)
@@ -169,6 +196,16 @@ func getEnvConfig() *config {
 		verificationEmailTemplatePath = "./templates/VerificationEmailTemplate.html"
 	}
 
+	var corsAllowedOrigins []string
+	if raw := os.Getenv("CORS_ALLOWED_ORIGINS"); raw != "" {
+		corsAllowedOrigins = splitTrimmed(raw, ",")
+	}
+
+	requestTimeoutSecs, err := strconv.Atoi(os.Getenv("REQUEST_TIMEOUT_SECS"))
+	if err != nil || requestTimeoutSecs <= 0 {
+		requestTimeoutSecs = 0 // zero triggers the default in GetRequestTimeout
+	}
+
 	useSSL, err := strconv.ParseBool(os.Getenv("DB_USE_SSL"))
 	if err != nil {
 		useSSL = true // Default value
@@ -184,7 +221,7 @@ func getEnvConfig() *config {
 		val = 5432
 	}
 
-	var dbport uint = uint(val)
+	dbport := uint(val)
 
 	dbuser := os.Getenv("DB_USER")
 	if dbuser == "" {
@@ -201,16 +238,14 @@ func getEnvConfig() *config {
 		dbname = "ToW"
 	}
 
-	masterKeyStr := os.Getenv("MASTER_KEY")
 	var masterKey []byte
-	if len(masterKeyStr) != 0 {
+	if masterKeyStr := os.Getenv("MASTER_KEY"); masterKeyStr != "" {
 		masterKey, err = base64.RawURLEncoding.DecodeString(masterKeyStr)
 		if err != nil {
 			fmt.Println("Error loading master key from env:", err)
-		}
-
-		if len(masterKey) != 32 {
-			fmt.Print("Error parsing master key from env. Key must be 32 bytes encoded in base64")
+		} else if len(masterKey) != 32 {
+			fmt.Println("Error parsing master key from env: key must be exactly 32 bytes encoded in base64")
+			masterKey = nil
 		}
 	}
 
@@ -223,11 +258,13 @@ func getEnvConfig() *config {
 			ListenAddress:                 listenAddress,
 			Domain:                        domain,
 			VerificationEmailTemplatePath: verificationEmailTemplatePath,
+			CORSAllowedOrigins:            corsAllowedOrigins,
+			RequestTimeoutSecs:            requestTimeoutSecs,
 		},
 		Database: databaseConfig{
 			UseSSL:    useSSL,
 			Host:      dbhost,
-			Port:      uint(dbport),
+			Port:      dbport,
 			User:      dbuser,
 			Password:  dbpassword,
 			Name:      dbname,
@@ -256,4 +293,17 @@ func (c *config) loadConfig(filename string) error {
 	}
 
 	return nil
+}
+
+// splitTrimmed splits s by sep and trims whitespace from each element,
+// omitting any empty strings that result.
+func splitTrimmed(s, sep string) []string {
+	parts := strings.Split(s, sep)
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

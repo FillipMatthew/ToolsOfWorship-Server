@@ -1,9 +1,13 @@
 package config
 
+import "time"
+
 type ServerConfig interface {
 	GetListenAddress() string
 	GetDomain() string
 	GetVerificationEmailTemplatePath() string
+	GetCORSAllowedOrigins() []string
+	GetRequestTimeout() time.Duration
 }
 
 type DatabaseConfig interface {

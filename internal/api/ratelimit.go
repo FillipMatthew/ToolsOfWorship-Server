@@ -2,10 +2,41 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
+
+// clientIP extracts the real client IP address from a request.
+// It checks, in order:
+//  1. X-Real-IP header (set by trusted proxies such as Nginx)
+//  2. X-Forwarded-For header — takes the leftmost (original client) address
+//  3. r.RemoteAddr, stripping the port via net.SplitHostPort
+func clientIP(r *http.Request) string {
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For may be a comma-separated list; the leftmost entry is
+		// the original client IP appended by the first proxy that received the
+		// request.
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+
+	// Fall back to the direct connection address, dropping the port.
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// RemoteAddr has no port (unlikely but possible) — use it as-is.
+		return r.RemoteAddr
+	}
+	return host
+}
 
 // rateLimiter tracks the request rate for each IP address.
 // It uses a simple in-memory map keyed by IP address with a list of request timestamps.
@@ -18,7 +49,7 @@ type rateLimiter struct {
 // It removes timestamps older than the time window before checking the count.
 func (l *rateLimiter) limit(next Handler, limit int, window time.Duration) Handler {
 	return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
-		ip := r.RemoteAddr // Note: Simplistic approach, doesn't handle X-Forwarded-For headers
+		ip := clientIP(r)
 
 		l.mu.Lock()
 		defer l.mu.Unlock()
