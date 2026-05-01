@@ -2,12 +2,15 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/config"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -21,7 +24,10 @@ type Server struct {
 	cancel        func()
 }
 
-func NewServer(logger *slog.Logger, config config.ServerConfig, healthChecker HealthChecker, mw []MiddlewareFunc, rt Router) *Server {
+func NewServer(logger *slog.Logger, config config.ServerConfig, healthChecker HealthChecker, db *sql.DB, mw []MiddlewareFunc, rt Router) *Server {
+	collector := NewDBStatsCollector(db)
+	prometheus.MustRegister(collector)
+
 	return &Server{
 		Logger:        logger,
 		config:        config,
@@ -83,12 +89,14 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) setupHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.health)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	allMiddlewares := []MiddlewareFunc{
 		WithTimeout(s.config.GetRequestTimeout()),
 		SecurityHeadersMiddleware,
 		CORSMiddleware(s.config.GetCORSAllowedOrigins()),
 		WithLog(s.Logger),
+		MetricsMiddleware,
 		WithHTTPErrStatus,
 	}
 	allMiddlewares = append(allMiddlewares, s.middleware...)

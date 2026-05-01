@@ -1,48 +1,42 @@
 # ToolsOfWorship-Server
 
-Tools of Worship server implemented in Go, providing backend services for the Tools of Worship site.
+Go REST API server providing backend services for the Tools of Worship application.
 
 ## Features
 
-- User authentication and authorization with JWT
-- Email verification system
-- Secure token management with key rotation
-- PostgreSQL database integration with automatic database creation
-- Configurable server settings via environment variables, JSON file, and command-line flags
+- JWT authentication with automatic signing key rotation
+- Email verification flow via Mailgun
+- Password hashing with bcrypt; encryption keys stored AES-GCM encrypted at rest
+- PostgreSQL with automatic database creation and SQL migration system
+- In-process TTL caching for read-heavy store operations
+- Rate limiting on authentication endpoints
+- Per-request body size limits per endpoint
+- Security headers (HSTS, CSP, X-Frame-Options, etc.)
+- CORS with configurable origin allowlist
+- Request timeouts on all endpoints
+- Structured logging via `log/slog`
+- Prometheus metrics at `/metrics` (restricted — see nginx configuration)
+- Configurable via environment variables, JSON file, and CLI flags
+- OpenAPI 3.0 specification at `api/openapi.yaml`
+- Automated deployment via GitHub Actions
 
 ## Prerequisites
 
 - Go 1.23.1 or higher
-- PostgreSQL database
-- Mailgun API for email functionality
+- PostgreSQL
+- Mailgun account
 
 ## Installation
 
-1. Clone the repository:
-
 ```bash
 git clone https://github.com/FillipMatthew/ToolsOfWorship-Server.git
-```
-
-2. Navigate to the project directory:
-
-```bash
 cd ToolsOfWorship-Server
-```
-
-3. Install dependencies:
-
-```bash
 go mod download
 ```
 
 ## Configuration
 
-The server can be configured using:
-
-- Environment variables
-- Configuration file (config.json)
-- Command line flags
+Settings are applied in this priority order (highest wins): CLI flags → config.json → environment variables → defaults.
 
 ### Environment Variables
 
@@ -50,7 +44,7 @@ The server can be configured using:
 LISTEN_ADDRESS=:8080
 DOMAIN=ToolsOfWorship.com
 VERIFICATION_EMAIL_TEMPLATE_PATH=./templates/VerificationEmailTemplate.html
-CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com  # Comma-separated; empty = wildcard
+CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com  # empty = wildcard
 REQUEST_TIMEOUT_SECS=30
 
 DB_USE_SSL=true
@@ -59,7 +53,7 @@ DB_PORT=5432
 DB_USER=user
 DB_PASSWORD=password
 DB_NAME=ToW
-MASTER_KEY=base64_encoded_32_byte_key  # Required; base64url-encoded 32 bytes
+MASTER_KEY=base64_encoded_32_byte_key  # Required
 DB_MAX_OPEN_CONNS=0    # 0 = unlimited
 DB_MAX_IDLE_CONNS=0    # 0 = driver default
 DB_CONN_MAX_LIFETIME_SECS=0  # 0 = unlimited
@@ -102,7 +96,7 @@ MAIL_ENDPOINT=https://api.mailgun.net
 
 ### NGINX Configuration
 
-To run behind NGINX, use a configuration similar to the following. NGINX will handle SSL termination and serve static files from the `public/` directory.
+NGINX handles SSL termination and serves static files. The `/metrics` endpoint must **not** be exposed publicly — restrict it to your Prometheus scraper IP.
 
 ```nginx
 server {
@@ -151,6 +145,13 @@ server {
     location /health {
         proxy_pass http://localhost:8080/health;
     }
+
+    # Restrict metrics to Prometheus scraper only — never expose publicly
+    location /metrics {
+        allow <prometheus-scraper-ip>;
+        deny all;
+        proxy_pass http://localhost:8080/metrics;
+    }
 }
 ```
 
@@ -158,22 +159,18 @@ server {
 
 ### GitHub Actions
 
-This project uses GitHub Actions for automated deployment. When changes are pushed to the `main` branch, the workflow will:
+Pushes to `main` automatically build and deploy. Required repository secrets:
 
-1. Build the Go binary.
-2. Deploy the binary, `public/` directory, and `templates/` directory to the server via SCP.
-3. Restart the `tow-server` service via SSH.
-
-To set up deployment, add the following secrets to your GitHub repository:
-
-- `SERVER_HOST`: Server IP or hostname.
-- `SERVER_USER`: SSH username.
-- `SSH_PRIVATE_KEY`: Private SSH key for deployment.
-- `TARGET_DIR`: Directory on the server where the application will be deployed.
+| Secret            | Description                        |
+| ----------------- | ---------------------------------- |
+| `SERVER_HOST`     | Server IP or hostname              |
+| `SERVER_USER`     | SSH username                       |
+| `SSH_PRIVATE_KEY` | Private SSH key                    |
+| `TARGET_DIR`      | Deployment directory on the server |
 
 ### Systemd Service
 
-A sample systemd service file is provided in `tow-server.service`. It is recommended to run the server under a dedicated non-privileged user.
+A sample service file is provided in `tow-server.service`. Run under a dedicated non-privileged user.
 
 ```ini
 [Unit]
@@ -189,16 +186,14 @@ ExecStart=/usr/local/lib/tools-of-worship/tow-server
 Restart=always
 RestartSec=5
 
-# Set environment variables directly
 Environment=LISTEN_ADDRESS=:8080
 Environment=DOMAIN=toolsofworship.com
 Environment=DB_HOST=localhost
 Environment=DB_USER=tow_user
 Environment=DB_NAME=ToW
-# It is better to use an EnvironmentFile for sensitive keys (MASTER_KEY, MAIL_KEY)
+# Use EnvironmentFile for secrets (MASTER_KEY, MAIL_KEY, DB_PASSWORD)
 # EnvironmentFile=/usr/local/lib/tools-of-worship/.env
 
-# Security Hardening
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=full
@@ -208,75 +203,38 @@ ProtectHome=yes
 WantedBy=multi-user.target
 ```
 
-To install the service:
+To install:
 
-1. Create a dedicated user: `sudo useradd -r -s /bin/false tow`
-2. Create the working directory and copy the binary:
-   ```bash
-   sudo mkdir -p /usr/local/lib/tools-of-worship
-   sudo cp tow-server /usr/local/lib/tools-of-worship/
-   sudo chown -R tow:tow /usr/local/lib/tools-of-worship
-   ```
-3. Copy the service file: `sudo cp tow-server.service /etc/systemd/system/`
-4. Enable and start:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable tow-server
-   sudo systemctl start tow-server
-   ```
-
-## API Endpoints
-
-### Authentication
-
-- POST `/api/user/login` - User authentication using email and password
-- POST `/api/user/register` - User registration with email verification
-- GET `/api/user/verifyemail` - Email verification with token
-- GET `/health` - Server health check with database status
+```bash
+sudo useradd -r -s /bin/false tow
+sudo mkdir -p /usr/local/lib/tools-of-worship
+sudo cp tow-server /usr/local/lib/tools-of-worship/
+sudo chown -R tow:tow /usr/local/lib/tools-of-worship
+sudo cp tow-server.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable tow-server
+sudo systemctl start tow-server
+```
 
 ## Project Structure
 
 ```
+├── api/                        # OpenAPI 3.0 specification
 ├── cmd/
-│   └── tow-server/       # Main application entry point and configuration
+│   └── tow-server/             # Entry point and configuration
 ├── internal/
-│   ├── api/             # API handlers and routing
-│   │   └── users/       # User-related API handlers
-│   ├── config/          # Configuration interfaces
-│   ├── db/              # Database implementations
-│   │   └── postgresql/  # PostgreSQL specific implementation
-│   ├── domain/          # Domain models and interfaces
-│   ├── keys/            # Cryptographic operations
-│   └── service/         # Business logic services
-├── templates/           # HTML/Email templates
-└── bin/                # Compiled binaries
+│   ├── api/                    # HTTP server, middleware, routing, handlers
+│   ├── cache/                  # In-process TTL cache wrappers
+│   ├── config/                 # Configuration interfaces
+│   ├── db/
+│   │   └── postgresql/         # PostgreSQL store implementations
+│   │       └── migrations/     # SQL migration files (embedded at compile time)
+│   ├── domain/                 # Models, store interfaces, constants, errors
+│   ├── keys/                   # Cryptographic operations
+│   └── service/                # Business logic
+├── public/                     # Static files served by nginx
+└── templates/                  # Email templates
 ```
-
-## Development
-
-### Code Structure
-
-- Uses clean architecture principles
-- Separation of concerns between API, domain logic, and data access
-- Centralized configuration management
-- Secure token handling with key rotation
-
-### Testing
-
-Run tests with (not yet implemented):
-
-```bash
-go test ./...
-```
-
-(Note: Ensure database and environment variables are properly configured before running tests.)
-
-### Security Features
-
-- JWT token-based authentication with HMAC-SHA256
-- Email verification
-- Password hashing using bcrypt for secure storage
-- Key rotation for signing and encryption with AES-GCM
 
 ## License
 

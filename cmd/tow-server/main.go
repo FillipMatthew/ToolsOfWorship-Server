@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/fellowships"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/middleware"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api/users"
+	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/cache"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/db/postgresql"
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/service"
 )
@@ -61,23 +61,25 @@ func appMain(ctx context.Context, logger *slog.Logger, config *config) error {
 		os.Exit(1)
 	}
 
+	const storeCacheTTL = 5 * time.Minute
+
 	logger.Info("setting up services")
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
 	mailService := service.NewMailService(config, config, logger)
-	userService := service.NewUserService(postgresql.NewUserStore(db), tokensService, *mailService)
-	fellowshipService := service.NewFellowshipService(postgresql.NewFellowshipStore(db))
-	feedService := service.NewFeedService(postgresql.NewFeedStore(db), postgresql.NewFellowshipStore(db), postgresql.NewCircleStore(db))
+	userService := service.NewUserService(cache.NewUserStore(postgresql.NewUserStore(db), storeCacheTTL), tokensService, *mailService)
+	fellowshipService := service.NewFellowshipService(cache.NewFellowshipStore(postgresql.NewFellowshipStore(db), storeCacheTTL))
+	feedService := service.NewFeedService(postgresql.NewFeedStore(db), cache.NewFellowshipStore(postgresql.NewFellowshipStore(db), storeCacheTTL), postgresql.NewCircleStore(db))
 
 	rt := api.ComposeRouters(users.NewRouter(userService), fellowships.NewRouter(fellowshipService), feed.NewRouter(feedService))
 
 	middlewares := []api.MiddlewareFunc{middleware.AuthMiddleware(userService)}
 
 	logger.Info("initialising server")
-	server := api.NewServer(logger, config, healthCheck(db, startTime), middlewares, rt)
+	server := api.NewServer(logger, config, healthCheck(db, startTime), db, middlewares, rt)
 	return server.Start(ctx)
 }
 
-func healthCheck(db *sql.DB, startTime time.Time) api.HealthCheckerFunc {
+func healthCheck(db *sql.DB, _ time.Time) api.HealthCheckerFunc {
 	return func(ctx context.Context) ([]api.Health, error) {
 		if err := db.PingContext(ctx); err != nil {
 			return nil, fmt.Errorf("db ping: %w", err)
@@ -87,20 +89,10 @@ func healthCheck(db *sql.DB, startTime time.Time) api.HealthCheckerFunc {
 			return nil, fmt.Errorf("db read: %w", row.Err())
 		}
 
-		var mem runtime.MemStats
-		runtime.ReadMemStats(&mem)
-
-		systemDetails := map[string]any{
-			"uptimeSeconds": time.Since(startTime).Seconds(),
-			"goroutines":    runtime.NumGoroutine(),
-			"memAllocMB":    float64(mem.Alloc) / 1024 / 1024,
-			"memSysMB":      float64(mem.Sys) / 1024 / 1024,
-			"gcCycles":      mem.NumGC,
-		}
-
+		now := time.Now().Local().String()
 		return []api.Health{
-			{Service: "ToW Server", Status: "OK", Time: time.Now().Local().String(), Details: systemDetails},
-			{Service: "ToW DB", Status: "OK", Time: time.Now().Local().String(), Details: db.Stats()},
+			{Service: "ToW Server", Status: "OK", Time: now},
+			{Service: "ToW DB", Status: "OK", Time: now},
 		}, nil
 	}
 }
