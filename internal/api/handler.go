@@ -28,13 +28,18 @@ func DiscardError(m string, h Handler) http.Handler {
 }
 
 type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Err     error  `json:"-"`
+	Code      int    `json:"code"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Message   string `json:"message"`
+	Err       error  `json:"-"`
 }
 
 func (e Error) Error() string {
-	msg := fmt.Sprintf("Error %d: %s", e.Code, e.Message)
+	msg := fmt.Sprintf("Error %d", e.Code)
+	if e.ErrorCode != "" {
+		msg += " (" + e.ErrorCode + ")"
+	}
+	msg += ": " + e.Message
 	if e.Err != nil {
 		msg += ": " + e.Err.Error()
 	}

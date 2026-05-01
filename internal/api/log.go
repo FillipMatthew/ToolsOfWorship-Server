@@ -2,45 +2,43 @@ package api
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/domain"
 )
 
 // WithLog middleware logs request details
-func WithLog(logger *log.Logger) MiddlewareFunc {
+func WithLog(logger *slog.Logger) MiddlewareFunc {
 	return func(method, pattern string, h Handler) Handler {
 		return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
 			start := time.Now()
 			err := h.ServeHTTP(w, r)
 
-			fields := map[string]any{
-				"method":   method,
-				"pattern":  pattern,
-				"url":      r.RequestURI,
-				"duration": time.Since(start),
-			}
-
 			if err != nil {
-				logger.Printf("request failed:\n%v", fields)
-				logger.Printf("error: %v", err)
+				logger.Error("request failed",
+					slog.String("method", method),
+					slog.String("pattern", pattern),
+					slog.String("url", r.RequestURI),
+					slog.Duration("duration", time.Since(start)),
+					slog.Any("error", err),
+				)
 				return err
 			}
 
-			logger.Printf("request succeeded:\n%v", fields)
+			logger.Info("request succeeded",
+				slog.String("method", method),
+				slog.String("pattern", pattern),
+				slog.String("url", r.RequestURI),
+				slog.Duration("duration", time.Since(start)),
+			)
 			return err
 		})
 	}
 }
 
-// WithHTTPErrStatus middleware handles HTTP error responses and limits request body size
+// WithHTTPErrStatus middleware handles HTTP error responses
 func WithHTTPErrStatus(method, pattern string, h Handler) Handler {
 	return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
-		// Limit request body size to domain.RequestBodyMaxBytes by default
-		r.Body = http.MaxBytesReader(w, r.Body, domain.RequestBodyMaxBytes)
-
 		err := h.ServeHTTP(w, r)
 		if err == nil {
 			return nil
@@ -61,4 +59,14 @@ func WithHTTPErrStatus(method, pattern string, h Handler) Handler {
 
 		return err
 	})
+}
+
+// WithBodyLimit returns a MiddlewareFunc that limits the request body size for a specific handler.
+func WithBodyLimit(maxBytes int64) MiddlewareFunc {
+	return func(method, pattern string, h Handler) Handler {
+		return HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			return h.ServeHTTP(w, r)
+		})
+	}
 }

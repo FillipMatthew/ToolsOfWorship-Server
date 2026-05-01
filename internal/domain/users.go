@@ -10,10 +10,10 @@ import (
 type SignInType int32
 
 const (
-	None SignInType = iota
-	LocalUser
-	TokenSignIn
-	GoogleSignIn
+	SignInTypeNone  SignInType = iota
+	SignInTypeLocal
+	SignInTypeToken
+	SignInTypeGoogle
 )
 
 type AccessLevel int32
@@ -63,7 +63,7 @@ func (uc *UserConnection) IsValid() bool {
 		return false
 	}
 
-	if uc.SignInType == None {
+	if uc.SignInType == SignInTypeNone {
 		return false
 	}
 

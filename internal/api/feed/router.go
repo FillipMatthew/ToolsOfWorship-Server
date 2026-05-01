@@ -16,8 +16,19 @@ type Router struct {
 }
 
 func (r *Router) Routes() []api.Route {
+	listLimit := api.WithBodyLimit(512)
+	postLimit := api.WithBodyLimit(65536)
+
 	return []api.Route{
-		{Method: http.MethodPost, Pattern: "/api/feed/list", Handler: list(r.feedService)},
-		{Method: http.MethodPost, Pattern: "/api/feed/post", Handler: post(r.feedService)},
+		{
+			Method:  http.MethodPost,
+			Pattern: "/api/feed/list",
+			Handler: listLimit(http.MethodPost, "/api/feed/list", list(r.feedService)),
+		},
+		{
+			Method:  http.MethodPost,
+			Pattern: "/api/feed/post",
+			Handler: postLimit(http.MethodPost, "/api/feed/post", post(r.feedService)),
+		},
 	}
 }

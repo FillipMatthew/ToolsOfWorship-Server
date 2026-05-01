@@ -70,10 +70,45 @@ func (c *CircleStore) GetUserCircleIDs(ctx context.Context, userId uuid.UUID) ([
 }
 
 func (c *CircleStore) GetUserAccessLevel(ctx context.Context, userId uuid.UUID, circleId uuid.UUID) (domain.AccessLevel, error) {
-	return domain.NoAccess, errors.New("not implemented")
+	accessLevel := domain.NoAccess
+
+	err := c.db.QueryRowContext(ctx, "SELECT access FROM CircleMembers WHERE userId=$1 AND circleId=$2", userId, circleId).Scan(&accessLevel)
+	if err != nil {
+		return domain.NoAccess, err
+	}
+
+	return accessLevel, nil
+}
+
+func (c *CircleStore) GetCircleMembers(ctx context.Context, circleId uuid.UUID) ([]domain.CircleMember, error) {
+	rows, err := c.db.QueryContext(ctx, "SELECT userId, access FROM CircleMembers WHERE circleId=$1", circleId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	members := make([]domain.CircleMember, 0)
+
+	for rows.Next() {
+		member := domain.CircleMember{CircleId: circleId}
+		if err := rows.Scan(&member.UserId, &member.Access); err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return members, nil
 }
 
 func (c *CircleStore) CreateCircle(ctx context.Context, circle domain.Circle) error {
-
 	return errors.New("not implemented")
+}
+
+func (c *CircleStore) AddCircleMember(ctx context.Context, member domain.CircleMember) error {
+	_, err := c.db.ExecContext(ctx, "INSERT INTO CircleMembers (circleId, userId, access) VALUES ($1, $2, $3)", member.CircleId, member.UserId, member.Access)
+	return err
 }

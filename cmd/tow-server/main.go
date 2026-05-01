@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"runtime"
@@ -21,30 +21,31 @@ import (
 )
 
 func main() {
-	logger := log.New(os.Stdout, "ToW-Server: ", log.LstdFlags)
-	logger.Println("starting ToW Server...")
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger.Info("starting ToW Server...")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	logger.Println("getting config")
+	logger.Info("getting config")
 	config := getConfig()
 
 	if err := appMain(ctx, logger, config); err != nil {
-		logger.Fatalf("start failed: %v", err)
+		logger.Error("start failed", "error", err)
+		os.Exit(1)
 	}
 
-	logger.Println("finished")
+	logger.Info("finished")
 }
 
-func appMain(ctx context.Context, logger *log.Logger, config *config) error {
+func appMain(ctx context.Context, logger *slog.Logger, config *config) error {
 	startTime := time.Now()
-	logger.Print("initialising...")
+	logger.Info("initialising...")
 
 	db, err := postgresql.NewDB(ctx, config, config)
 	if err != nil {
-		logger.Fatalf("Failed to init DB: %v", err)
-		return err
+		logger.Error("Failed to init DB", "error", err)
+		os.Exit(1)
 	}
 
 	if db == nil {
@@ -53,14 +54,14 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 
 	defer db.Close()
 
-	logger.Println("preparing DB")
+	logger.Info("preparing DB")
 	err = postgresql.PrepareDB(ctx, db)
 	if err != nil {
-		logger.Fatalf("Failed to prepare DB: %v", err)
-		return err
+		logger.Error("Failed to prepare DB", "error", err)
+		os.Exit(1)
 	}
 
-	logger.Println("setting up services")
+	logger.Info("setting up services")
 	tokensService := service.NewTokensService(ctx, config, postgresql.NewKeyStore(config, db))
 	mailService := service.NewMailService(config, config, logger)
 	userService := service.NewUserService(postgresql.NewUserStore(db), tokensService, *mailService)
@@ -71,7 +72,7 @@ func appMain(ctx context.Context, logger *log.Logger, config *config) error {
 
 	middlewares := []api.MiddlewareFunc{middleware.AuthMiddleware(userService)}
 
-	logger.Println("initialising server")
+	logger.Info("initialising server")
 	server := api.NewServer(logger, config, healthCheck(db, startTime), middlewares, rt)
 	return server.Start(ctx)
 }

@@ -80,6 +80,35 @@ func (f *FellowshipStore) GetUserAccessLevel(ctx context.Context, userId uuid.UU
 	return accessLevel, nil
 }
 
+func (f *FellowshipStore) GetFellowshipMembers(ctx context.Context, fellowshipId uuid.UUID) ([]domain.FellowshipMember, error) {
+	rows, err := f.db.QueryContext(ctx, "SELECT userId, access FROM FellowshipMembers WHERE fellowshipId=$1", fellowshipId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	members := make([]domain.FellowshipMember, 0)
+
+	for rows.Next() {
+		member := domain.FellowshipMember{FellowshipId: fellowshipId}
+		if err := rows.Scan(&member.UserId, &member.Access); err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return members, nil
+}
+
 func (f *FellowshipStore) CreateFellowship(ctx context.Context, fellowship domain.Fellowship) error {
 	return errors.New("not implemented")
+}
+
+func (f *FellowshipStore) AddFellowshipMember(ctx context.Context, member domain.FellowshipMember) error {
+	_, err := f.db.ExecContext(ctx, "INSERT INTO FellowshipMembers (fellowshipId, userId, access) VALUES ($1, $2, $3)", member.FellowshipId, member.UserId, member.Access)
+	return err
 }

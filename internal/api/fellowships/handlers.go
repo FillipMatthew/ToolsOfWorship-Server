@@ -23,7 +23,7 @@ func list(f fellowshipService) api.HandlerFunc {
 
 		fellowships, err := f.List(r.Context(), *user)
 		if err != nil {
-			return &api.Error{Code: http.StatusInternalServerError, Message: "could not fetch fellowships", Err: err}
+			return api.MapDomainError(err)
 		}
 
 		w.Header().Set("Content-Type", "application/json")

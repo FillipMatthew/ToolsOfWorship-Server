@@ -31,7 +31,7 @@ func (u *UserService) Login(ctx context.Context, accountId, password string) (*d
 
 	accountId = strings.ToLower(accountId)
 
-	userConnection, err := u.userStore.GetUserConnection(ctx, domain.LocalUser, accountId)
+	userConnection, err := u.userStore.GetUserConnection(ctx, domain.SignInTypeLocal, accountId)
 	if err != nil {
 		return nil, nil, domain.ErrInvalidCredentials
 	}
@@ -57,7 +57,7 @@ func (u *UserService) Login(ctx context.Context, accountId, password string) (*d
 }
 
 func (u *UserService) SignIn(ctx context.Context, userConnection domain.UserConnection) (*domain.Token, *domain.User, error) {
-	if userConnection.SignInType == domain.LocalUser && userConnection.AuthDetails != nil {
+	if userConnection.SignInType == domain.SignInTypeLocal && userConnection.AuthDetails != nil {
 		return u.Login(ctx, userConnection.AccountId, *userConnection.AuthDetails)
 	} else {
 		return nil, nil, fmt.Errorf("unsupported sign-in type: %d", userConnection.SignInType)
@@ -144,7 +144,7 @@ func (u *UserService) VerifyAccount(ctx context.Context, token domain.Token) err
 }
 
 func (u *UserService) validateNewUser(ctx context.Context, email string) bool {
-	userConnection, err := u.userStore.GetUserConnection(ctx, domain.LocalUser, email)
+	userConnection, err := u.userStore.GetUserConnection(ctx, domain.SignInTypeLocal, email)
 	if err != nil {
 		return true
 	}
@@ -163,7 +163,7 @@ func (u *UserService) createNewUser(ctx context.Context, email, authDetails, dis
 		return uuid.Nil, errors.New("could not save user")
 	}
 
-	userConnection := domain.UserConnection{UserId: userId, SignInType: domain.LocalUser, AccountId: email, AuthDetails: &authDetails}
+	userConnection := domain.UserConnection{UserId: userId, SignInType: domain.SignInTypeLocal, AccountId: email, AuthDetails: &authDetails}
 	err = u.userStore.SaveUserConnection(ctx, userConnection)
 	if err != nil {
 		u.userStore.RemoveUser(ctx, userId)

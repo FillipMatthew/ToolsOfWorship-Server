@@ -16,7 +16,13 @@ type Router struct {
 }
 
 func (r *Router) Routes() []api.Route {
+	listLimit := api.WithBodyLimit(512)
+
 	return []api.Route{
-		{Method: http.MethodPost, Pattern: "/api/fellowships/list", Handler: list(r.fellowshipService)},
+		{
+			Method:   http.MethodPost,
+			Pattern:  "/api/fellowships/list",
+			Handler:  listLimit(http.MethodPost, "/api/fellowships/list", list(r.fellowshipService)),
+		},
 	}
 }

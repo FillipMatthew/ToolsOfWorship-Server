@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/FillipMatthew/ToolsOfWorship-Server/internal/api"
@@ -34,12 +33,8 @@ func loginHandler(l loginService) api.HandlerFunc {
 		}
 
 		token, user, err := l.Login(r.Context(), username, pass)
-
-		switch {
-		case errors.Is(err, api.ErrorUnauthorized):
-			return &api.Error{Code: http.StatusUnauthorized, Message: "user not authorised", Err: err}
-		case err != nil:
-			return &api.Error{Code: http.StatusInternalServerError, Message: "user login failed", Err: err}
+		if err != nil {
+			return api.MapDomainError(err)
 		}
 
 		api.RespondJSON(w, User{Token: string(*token), DisplayName: user.DisplayName}, http.StatusOK)
@@ -57,7 +52,7 @@ func registerUserHandler(ur userRegisterationService) api.HandlerFunc {
 		err := ur.Register(r.Context(), domain.User{DisplayName: newUser.DisplayName},
 			newUser.AccountId, newUser.Password)
 		if err != nil {
-			return &api.Error{Code: http.StatusInternalServerError, Message: "user registration failed", Err: err}
+			return api.MapDomainError(err)
 		}
 
 		api.RespondJSON(w, map[string]string{"message": "Pending email verification."}, http.StatusOK)

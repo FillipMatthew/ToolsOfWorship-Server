@@ -17,9 +17,6 @@ const (
 
 	// KeyExpiryDuration is how long a signing/encryption key is valid (182 days ≈ 6 months).
 	KeyExpiryDuration = 182 * 24 * time.Hour
-
-	// RequestBodyMaxBytes is the global maximum size for HTTP request bodies.
-	RequestBodyMaxBytes = 1 * 1024 * 1024
 )
 
 // EmailRegex is the compiled form of EmailRegexPattern, ready for use without re-compilation.

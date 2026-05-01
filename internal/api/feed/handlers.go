@@ -31,7 +31,7 @@ func list(f feedService) api.HandlerFunc {
 
 		posts, err := f.List(r.Context(), *user, listRequest.Limit, listRequest.Before, listRequest.After)
 		if err != nil {
-			return &api.Error{Code: http.StatusInternalServerError, Message: "could not fetch posts", Err: err}
+			return api.MapDomainError(err)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -58,7 +58,7 @@ func post(f feedService) api.HandlerFunc {
 
 		err := f.Post(r.Context(), *user, postRequest.FellowshipId, postRequest.CircleId, postRequest.Heading, postRequest.Article)
 		if err != nil {
-			return &api.Error{Code: http.StatusInternalServerError, Message: "failed to post", Err: err}
+			return api.MapDomainError(err)
 		}
 
 		w.WriteHeader(http.StatusOK)

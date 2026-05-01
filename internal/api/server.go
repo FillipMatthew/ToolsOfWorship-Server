@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 
@@ -11,7 +11,7 @@ import (
 )
 
 type Server struct {
-	Logger        *log.Logger
+	Logger        *slog.Logger
 	config        config.ServerConfig
 	healthChecker HealthChecker
 	middleware    []MiddlewareFunc
@@ -21,7 +21,7 @@ type Server struct {
 	cancel        func()
 }
 
-func NewServer(logger *log.Logger, config config.ServerConfig, healthChecker HealthChecker, mw []MiddlewareFunc, rt Router) *Server {
+func NewServer(logger *slog.Logger, config config.ServerConfig, healthChecker HealthChecker, mw []MiddlewareFunc, rt Router) *Server {
 	return &Server{
 		Logger:        logger,
 		config:        config,
@@ -34,8 +34,7 @@ func NewServer(logger *log.Logger, config config.ServerConfig, healthChecker Hea
 func (s *Server) Start(ctx context.Context) error {
 	ctx, s.cancel = context.WithCancel(ctx)
 
-	s.Logger.Println("starting server:")
-	s.Logger.Printf("address: '%s'\n", s.config.GetListenAddress())
+	s.Logger.Info("starting server", slog.String("address", s.config.GetListenAddress()))
 
 	mux := http.NewServeMux()
 	s.setupHandlers(mux)
@@ -48,11 +47,11 @@ func (s *Server) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		if err := s.Stop(); err != nil {
-			s.Logger.Fatalf("server stopped with a failure: %v", err)
+			s.Logger.Error("server stopped with a failure", "error", err)
 		}
 	}()
 
-	s.Logger.Printf("starting listener")
+	s.Logger.Info("starting listener")
 
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -65,7 +64,7 @@ func (s *Server) Stop() error {
 	s.cancel()
 	var err error
 	s.once.Do(func() {
-		s.Logger.Println("shutting down server")
+		s.Logger.Info("shutting down server")
 		err = s.httpServer.Shutdown(context.Background())
 	})
 
